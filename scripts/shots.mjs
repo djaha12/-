@@ -19,6 +19,12 @@ const ROUTES = [
   { name: 'case', path: '/case/loft-dzhal-72' },
   { name: 'profile-realtor', path: '/s/nurlan-abdykadyrov' },
   { name: 'case-deal', path: '/case/dvushka-toktogula' },
+  { name: 'specialists', path: '/specialists' },
+  { name: 'wizard-1', path: '/new' },
+  { name: 'wizard-2', path: '/new?step=2' },
+  { name: 'wizard-3', path: '/new?step=3' },
+  { name: 'login', path: '/login' },
+  { name: 'login-otp', path: '/login?step=2' },
   { name: 'dev-ui', path: '/dev/ui' },
 ]
 

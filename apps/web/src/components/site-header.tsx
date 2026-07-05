@@ -19,7 +19,7 @@ export function SiteHeader() {
             Проекты
           </Link>
           <Link
-            href="#"
+            href="/specialists"
             className="rounded-full px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
           >
             Специалисты
@@ -57,12 +57,12 @@ export function SiteHeader() {
             <span className="max-[400px]:sr-only">Бишкек</span>
           </Button>
           <ThemeToggle />
-          <Button variant="ghost" size="sm" className="max-md:h-11">
-            Войти
+          <Button asChild variant="ghost" size="sm" className="max-md:h-11">
+            <Link href="/login">Войти</Link>
           </Button>
           {/* один терракотовый primary на экран — у хедера только soft */}
-          <Button variant="soft" size="sm" className="hidden md:inline-flex">
-            Я специалист
+          <Button asChild variant="soft" size="sm" className="hidden md:inline-flex">
+            <Link href="/new">Я специалист</Link>
           </Button>
           {/* мобильная навигация: Проекты/Специалисты/Брифы + «Я специалист» */}
           <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Меню">

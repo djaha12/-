@@ -48,8 +48,11 @@ export type DealType = 'sale' | 'rentOut' | 'buyAssist'
 export interface DealInfo {
   type: DealType
   propertyType: string // «Вторичка», «Новостройка», «Дом», «Коммерция»
-  /** цена сделки в сомах; для аренды — в месяц */
+  /** точная цена в сомах (visibility=EXACT); для аренды — в месяц */
   price?: number
+  /** вилка цены (visibility=RANGE) — точная цена не раскрывается никогда */
+  priceFrom?: number
+  priceTo?: number
   /** дней от публикации до задатка; только завершённые продажи/аренда */
   daysOnMarket?: number
   /** сделка проведена через заказ на платформе и подтверждена клиентом */
@@ -161,6 +164,7 @@ export const cases: CaseItem[] = [
   { id: 'c22', slug: 'cabinet-vefa', title: 'Кабинет руководителя, БЦ «Вефа»', specialistSlug: 'timur-sadykov', location: 'Бишкек, центр', styles: ['Индастриал'], areaM2: 34, budgetFrom: 640000, budgetTo: 800000, saves: 49, imageId: 'c22' },
   { id: 'c23', slug: 'rental-osh-45', title: 'Квартира под сдачу 45 м²', specialistSlug: 'cholpon-imanova', location: 'Ош', styles: ['Неоклассика'], areaM2: 45, budgetFrom: 500000, budgetTo: 620000, saves: 77, imageId: 'c23' },
   { id: 'c24', slug: 'terrace-bosteri', title: 'Терраса с панорамой озера', specialistSlug: 'daniyar-osmonov', location: 'Бостери', styles: ['Органический'], areaM2: 60, budgetFrom: 900000, budgetTo: 1250000, saves: 154, imageId: 'c24' },
+  { id: 'c25', slug: 'staging-studio-arenda', title: 'Стейджинг студии перед арендой', specialistSlug: 'maria-kim', location: 'Бишкек, Аламедин-1', styles: ['Нейтральный'], areaM2: 38, budgetFrom: 60000, budgetTo: 90000, saves: 27, imageId: 'g5' },
   // сделки риелтора — история, не объявления
   { id: 'd01', slug: 'dvushka-toktogula', title: 'Двушка на Токтогула, 58 м²', specialistSlug: 'nurlan-abdykadyrov', location: 'Бишкек, центр', styles: [], areaM2: 58, budgetFrom: 0, budgetTo: 0, saves: 87, imageId: 'd01', deal: { type: 'sale', propertyType: 'Вторичка', price: 4650000, daysOnMarket: 18, confirmed: true } },
   { id: 'd02', slug: 'treshka-dzhal-remont', title: 'Трёшка в Джале с ремонтом', specialistSlug: 'nurlan-abdykadyrov', location: 'Бишкек, Джал', styles: [], areaM2: 82, budgetFrom: 0, budgetTo: 0, saves: 64, imageId: 'd02', deal: { type: 'sale', propertyType: 'Вторичка', price: 6200000, daysOnMarket: 31, confirmed: true } },

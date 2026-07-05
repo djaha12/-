@@ -4,7 +4,7 @@ import { BadgeCheck, Bookmark } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { SaveButton } from '@/components/save-button'
 import { img, specialistBySlug, type CaseItem, type DealInfo } from '@/mock/data'
-import { cn, formatDealPrice } from '@/lib/utils'
+import { cn, formatBudgetRange, formatDealPrice } from '@/lib/utils'
 
 export const DEAL_TYPE_LABEL: Record<DealInfo['type'], string> = {
   sale: 'Продажа',
@@ -116,9 +116,21 @@ export function CaseCard({ item, hideAuthor = false, frame = 'natural' }: CaseCa
                 </span>
                 <span className="text-muted-foreground"> · {DEAL_TYPE_LABEL[item.deal.type]}</span>
               </>
-            ) : (
+            ) : item.deal.priceFrom && item.deal.priceTo ? (
+              // видимость RANGE: публикуется только вилка
+              <>
+                <span className="font-semibold">
+                  {formatBudgetRange(item.deal.priceFrom, item.deal.priceTo).som}
+                </span>
+                <span className="text-muted-foreground"> · {DEAL_TYPE_LABEL[item.deal.type]}</span>
+              </>
+            ) : item.deal.type === 'buyAssist' ? (
               // buyAssist: бейдж «Подбор выполнен» уже назвал тип — без повторов
               <span className="text-muted-foreground">Под задачу клиента</span>
+            ) : (
+              <span className="text-muted-foreground">
+                Цена не публикуется · {DEAL_TYPE_LABEL[item.deal.type]}
+              </span>
             )}
           </p>
         ) : null}
