@@ -1,0 +1,182 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   ATELIER design tokens — единственный источник истины.
+   Тёплый белый / глубокий графит, один терракотовый акцент.
+   Подробности: .claude/skills/atelier-conventions
+   ============================================================ */
+
+:root {
+  /* поверхность */
+  --background: oklch(0.976 0.004 85); /* тёплая бумага */
+  --surface: oklch(0.995 0.002 90);
+  --surface-muted: oklch(0.957 0.005 85);
+  --border: oklch(0.908 0.007 80);
+  --border-strong: oklch(0.84 0.009 78);
+
+  /* текст */
+  --foreground: oklch(0.245 0.012 50); /* тёплый графит */
+  --muted-foreground: oklch(0.5 0.014 55);
+  --faint-foreground: oklch(0.63 0.012 65);
+
+  /* акцент — терракота, ЕДИНСТВЕННЫЙ цветной */
+  --accent: oklch(0.545 0.122 40);
+  --accent-hover: oklch(0.495 0.126 40);
+  --accent-foreground: oklch(0.985 0.005 80);
+  --accent-soft: oklch(0.945 0.026 45);
+  --accent-soft-foreground: oklch(0.44 0.115 40);
+
+  /* семантика — приглушённая, встречается редко */
+  --success: oklch(0.545 0.09 155);
+  --success-soft: oklch(0.94 0.03 155);
+  --danger: oklch(0.55 0.15 27);
+  --danger-soft: oklch(0.945 0.028 27);
+  --warning: oklch(0.62 0.11 80);
+
+  /* инверсия (тосты, тултипы) */
+  --inverse: oklch(0.26 0.01 285);
+  --inverse-foreground: oklch(0.97 0.004 85);
+
+  --ring: oklch(0.545 0.122 40);
+}
+
+.dark {
+  --background: oklch(0.207 0.008 285); /* глубокий графит */
+  --surface: oklch(0.246 0.009 285);
+  --surface-muted: oklch(0.283 0.009 285);
+  --border: oklch(0.315 0.01 285);
+  --border-strong: oklch(0.38 0.011 285);
+
+  --foreground: oklch(0.928 0.006 85);
+  --muted-foreground: oklch(0.702 0.009 80);
+  --faint-foreground: oklch(0.56 0.009 80);
+
+  --accent: oklch(0.685 0.115 45);
+  --accent-hover: oklch(0.73 0.11 47);
+  --accent-foreground: oklch(0.185 0.02 40);
+  --accent-soft: oklch(0.302 0.036 42);
+  --accent-soft-foreground: oklch(0.8 0.085 48);
+
+  --success: oklch(0.7 0.09 155);
+  --success-soft: oklch(0.3 0.032 155);
+  --danger: oklch(0.7 0.13 27);
+  --danger-soft: oklch(0.3 0.03 27);
+  --warning: oklch(0.75 0.1 82);
+
+  --inverse: oklch(0.94 0.005 85);
+  --inverse-foreground: oklch(0.23 0.01 285);
+
+  --ring: oklch(0.685 0.115 45);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-faint-foreground: var(--faint-foreground);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-foreground: var(--accent-soft-foreground);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-inverse: var(--inverse);
+  --color-inverse-foreground: var(--inverse-foreground);
+  --color-ring: var(--ring);
+
+  /* типографика: Manrope — UI, Lora — display serif (кириллица) */
+  --font-sans: 'Manrope Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Lora Variable', Georgia, 'Times New Roman', serif;
+
+  /* радиусы: изображения и карточки скруглены заметно, контролы — умеренно */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  /* motion: 150–250ms, естественный easing, сдержанно */
+  --ease-soft: cubic-bezier(0.32, 0.72, 0, 1);
+  --animate-fade-up: fade-up 0.35s var(--ease-soft) both;
+  --animate-save-pop: save-pop 0.35s var(--ease-soft);
+
+  /* elevation: тёплые, едва заметные тени */
+  --shadow-card: 0 1px 2px oklch(0.3 0.02 60 / 0.06), 0 4px 16px oklch(0.3 0.02 60 / 0.05);
+  --shadow-float: 0 2px 8px oklch(0.25 0.02 60 / 0.09), 0 12px 32px oklch(0.25 0.02 60 / 0.11);
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes save-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: 'ss01';
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--accent-soft-foreground);
+  }
+
+  /* видимый фокус — только с клавиатуры (WCAG AA) */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

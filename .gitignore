@@ -1,0 +1,16 @@
+node_modules/
+.next/
+dist/
+.turbo/
+*.tsbuildinfo
+.env
+.env.local
+.env*.local
+
+# generated mock assets (pnpm gen:mock)
+apps/web/public/mock/
+
+# screenshot evidence is attached to reviews, not versioned
+screenshots/
+
+.DS_Store

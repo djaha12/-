@@ -1,0 +1,5 @@
+#!/bin/sh
+# lint + typecheck перед каждым коммитом (ТЗ: git-дисциплина)
+set -e
+pnpm typecheck
+pnpm lint

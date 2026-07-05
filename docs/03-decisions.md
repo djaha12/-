@@ -1,0 +1,29 @@
+# ATELIER — принятые решения (Фаза 0 → 1)
+
+Dars делегировал решения по docs/01-questions.md: «делай как считаешь эффективнее». Фиксация дефолтов:
+
+1. **Хостинг**: Hetzner VPS + Docker Compose (web, services, Postgres, Redis, Meilisearch) + Cloudflare CDN + R2.
+   Dev-окружение — docker-compose.dev.yml. Staging — второй стенд.
+2. **OTP**: Telegram Gateway первичный + SMS-fallback за абстракцией `OtpChannel` (провайдер SMS подключим
+   при договоре; в dev — mock-канал с кодом в логах).
+3. **Instagram-импорт**: фазируем. MVP — ручная мобильная загрузка + «ссылки как помощник»; Graph API — фаза 1.5.
+4. **Модерация**: trust-tiers. Новый аккаунт — премодерация первых 3 кейсов + автопроверки (pHash-дубликаты);
+   далее — мгновенная публикация, пост-модерация.
+5. **Холодный старт отзывов**: вариант А — строго только верифицированные отзывы по заказам. Никакого импорта
+   внешних отзывов. Честность = позиционирование.
+6. **Агентства**: Organization/OrgMembership в схеме БД с первого дня; UI MVP — метка «работает в X» + заглушка.
+7. **Контакты**: автоскрытие телефонов/ссылок в публичном контенте (кейсы, посты, брифы); в чате — свободно.
+8. **PRO**: entitlements с первого дня, активация вручную/промокодами; PaymentProvider — абстракция,
+   интеграции Mbank/O!Деньги — после мерчант-договоров.
+9. **Сроки**: жёсткой даты нет → полный охват M1–M7; при необходимости первыми режем челленджи и посты (M5.1).
+10. **Языки**: ru — источник; ky/en — перевод с маркером `// TODO(native-review)` в i18n-файлах.
+11. **Домен**: рабочее имя ATELIER; все URL/имя бота — через env (`NEXT_PUBLIC_APP_URL`, `APP_NAME`).
+
+## Технические фиксации
+- Монорепо pnpm + Turborepo; apps/web (Next.js 15, TS strict, Tailwind v4, shadcn-паттерн, TanStack Query, tRPC),
+  apps/services (Fastify: WS, BullMQ/Redis, grammY) — появится в M4/M6; packages/db, core, i18n, config.
+- Шрифты self-hosted через @fontsource-variable (Manrope UI + Lora display) — без запросов к Google в рантайме.
+- Изображения mock-данных: курированные фото интерьеров (Unsplash CDN, лицензия Unsplash), хранятся в репо
+  для dev/демо; прод-пайплайн — R2.
+- Скриншот-харнесс: `pnpm shots` (Playwright, предустановленный Chromium) → screenshots/ 1440/390 × light/dark.
+- Аналитика/флаги: PostHog (M7); Sentry (M7).

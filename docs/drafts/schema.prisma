@@ -1,0 +1,1121 @@
+// =============================================================================
+// ATELIER — Prisma-схема MVP (draft)
+// PostgreSQL. Источник истины по продукту: docs/04-product-spec.md
+//
+// Конвенции:
+// - Деньги: Int в СОМАХ (KGS), целые. Тыйыны (minor units) не нужны —
+//   на рынке нет цен с дробными сомами, все бюджеты/вилки оперируют
+//   тысячами сомов. USD — только отображение по курсу НБКР (ExchangeRate).
+// - Везде createdAt/updatedAt; deletedAt = soft-delete там, где контент
+//   может ссылаться извне (кейсы, коллекции, сообщения и т.п.).
+// - enum-значения — английские; локализация — в i18n-слое.
+// - Никаких кредитных/процентных механик — в схеме их нет и не будет.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ПОЛЬЗОВАТЕЛИ И ПРОФИЛИ
+// =============================================================================
+
+enum UserRole {
+  CLIENT
+  SPECIALIST
+  MODERATOR
+  ADMIN
+}
+
+/// Trust-tiers модерации (решение 03/4): новичок — премодерация первых 3 кейсов.
+enum TrustTier {
+  NEW
+  TRUSTED
+  VERIFIED
+}
+
+model User {
+  id             String    @id @default(cuid())
+  /// Телефон в формате E.164 (+996XXXXXXXXX) — первичный идентификатор входа (OTP).
+  phone          String    @unique
+  phoneVerifiedAt DateTime?
+  role           UserRole  @default(CLIENT)
+  trustTier      TrustTier @default(NEW)
+  displayName    String
+  avatarUrl      String?
+  /// Chat ID Telegram-бота после deep-link привязки — основной канал уведомлений.
+  telegramChatId String?   @unique
+  locale         String    @default("ru") // ru | ky | en
+  lastSeenAt     DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  specialistProfile SpecialistProfile?
+  clientProfile     ClientProfile?
+  orgMemberships    OrgMembership[]
+  cases             Case[]
+  caseCollaborations CaseCollaborator[]
+  collections       Collection[]
+  following         Follow[]           @relation("Follower")
+  followers         Follow[]           @relation("Following")
+  likes             Like[]
+  saves             Save[]
+  briefs            Brief[]
+  briefResponses    BriefResponse[]
+  chatParticipants  ChatParticipant[]
+  messages          Message[]
+  ordersAsClient    Order[]            @relation("OrderClient")
+  ordersAsSpecialist Order[]           @relation("OrderSpecialist")
+  checkpoints       OrderCheckpoint[]
+  reviewsAuthored   Review[]           @relation("ReviewAuthor")
+  reviewsReceived   Review[]           @relation("ReviewTarget")
+  verifications     Verification[]
+  reports           Report[]
+  notifications     Notification[]
+  entitlements      Entitlement[]
+
+  @@index([role, createdAt])
+}
+
+/// Специализации специалистов (spec §Роли). Мастеров-ремонтников НЕТ намеренно.
+enum Specialization {
+  REALTOR
+  ARCHITECT
+  INTERIOR_DESIGNER
+  LANDSCAPE_DESIGNER
+  DECORATOR_STAGER
+  VISUALIZER_3D
+  PHOTO_VIDEO
+}
+
+model SpecialistProfile {
+  id             String         @id @default(cuid())
+  userId         String         @unique
+  user           User           @relation(fields: [userId], references: [id])
+  /// Латинский слаг публичного профиля /{slug}. Фаза 2: тот же слаг — кастомные домены.
+  slug           String         @unique
+  specialization Specialization
+  headline       String?
+  bio            String?
+  coverImageUrl  String?
+  cityId         String
+  city           City           @relation(fields: [cityId], references: [id])
+  districtId     String?
+  district       District?      @relation(fields: [districtId], references: [id])
+  /// Вилка цен в СОМАХ (целые KGS, не minor units). USD — вычисляется по ExchangeRate.
+  priceMin       Int?
+  priceMax       Int?
+  /// Единица измерения вилки — за м², за проект, за час (для честного сравнения).
+  priceUnit      PriceUnit      @default(PER_PROJECT)
+  acceptsOrders  Boolean        @default(true)
+  /// Счётчики витрины (инкрементально, точные данные — в PostHog/AnalyticsOutbox).
+  viewsCount     Int            @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  styles          SpecialistStyle[]
+  reviewAggregate ReviewAggregate?
+  boostCampaigns  BoostCampaign[]
+
+  @@index([specialization, cityId, acceptsOrders])
+  @@index([cityId])
+}
+
+enum PriceUnit {
+  PER_M2
+  PER_PROJECT
+  PER_HOUR
+}
+
+model ClientProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+  cityId String?
+  city   City?  @relation(fields: [cityId], references: [id])
+  /// Денормализация «N завершённых заказов» — лёгкая репутация клиента.
+  completedOrdersCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// =============================================================================
+// ОРГАНИЗАЦИИ (агентства) — в БД с первого дня, UI MVP: метка «работает в X»
+// =============================================================================
+
+model Organization {
+  id        String  @id @default(cuid())
+  name      String
+  slug      String  @unique
+  logoUrl   String?
+  cityId    String?
+  city      City?   @relation(fields: [cityId], references: [id])
+  /// Бейдж «юрлицо/патент подтверждены» (через Verification kind=BUSINESS владельца).
+  isVerified Boolean @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  memberships OrgMembership[]
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model OrgMembership {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  role           OrgRole      @default(MEMBER)
+  /// Публичная подпись «работает в X» показывается только после подтверждения.
+  isConfirmed    Boolean      @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+// =============================================================================
+// ГЕОГРАФИЯ И ТАКСОНОМИИ
+// =============================================================================
+
+model City {
+  id      String @id @default(cuid())
+  slug    String @unique
+  nameRu  String
+  nameKy  String?
+  nameEn  String?
+  /// ISO 3166-1 alpha-2. Сейчас KG; Фаза 2 — KZ, UZ без миграции схемы.
+  country String @default("KG")
+  sortOrder Int  @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  districts          District[]
+  specialistProfiles SpecialistProfile[]
+  clientProfiles     ClientProfile[]
+  organizations      Organization[]
+  cases              Case[]
+  briefs             Brief[]
+}
+
+model District {
+  id     String @id @default(cuid())
+  cityId String
+  city   City   @relation(fields: [cityId], references: [id])
+  slug   String
+  nameRu String
+  nameKy String?
+  nameEn String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  specialistProfiles SpecialistProfile[]
+  cases              Case[]
+
+  @@unique([cityId, slug])
+}
+
+/// Стили (минимализм, неоклассика, лофт…) — курируемый справочник, фильтр ленты.
+model Style {
+  id     String @id @default(cuid())
+  slug   String @unique
+  nameRu String
+  nameKy String?
+  nameEn String?
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  caseStyles       CaseStyle[]
+  specialistStyles SpecialistStyle[]
+}
+
+/// Категории кейсов (квартира, дом, коммерция, ландшафт…) — курируемый справочник.
+model Category {
+  id     String @id @default(cuid())
+  slug   String @unique
+  nameRu String
+  nameKy String?
+  nameEn String?
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cases Case[]
+}
+
+/// Свободные теги (нормализуются приложением: lowercase, транслит-слаг).
+model Tag {
+  id     String @id @default(cuid())
+  slug   String @unique
+  nameRu String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  caseTags CaseTag[]
+}
+
+model SpecialistStyle {
+  specialistProfileId String
+  specialistProfile   SpecialistProfile @relation(fields: [specialistProfileId], references: [id])
+  styleId             String
+  style               Style             @relation(fields: [styleId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@id([specialistProfileId, styleId])
+  @@index([styleId])
+}
+
+// =============================================================================
+// КЕЙСЫ — главная единица контента
+// =============================================================================
+
+enum CaseStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+/// Роль автора в проекте — честная атрибуция вклада.
+enum CaseAuthorRole {
+  FULL_PROJECT
+  DESIGN_ONLY
+  AUTHOR_SUPERVISION
+  VISUALIZATION
+  PHOTOGRAPHY
+  STAGING
+  REALTOR_LISTING
+  OTHER
+}
+
+model Case {
+  id          String     @id @default(cuid())
+  authorId    String
+  author      User       @relation(fields: [authorId], references: [id])
+  slug        String     @unique
+  title       String
+  description String?
+  status      CaseStatus @default(DRAFT)
+  authorRole  CaseAuthorRole @default(FULL_PROJECT)
+  categoryId  String?
+  category    Category?  @relation(fields: [categoryId], references: [id])
+  cityId      String?
+  city        City?      @relation(fields: [cityId], references: [id])
+  districtId  String?
+  district    District?  @relation(fields: [districtId], references: [id])
+  /// Площадь, м² (дробная: 45.5 м²).
+  areaM2      Decimal?   @db.Decimal(9, 2)
+  /// Бюджет проекта вилкой, СОМЫ (целые KGS). null = «бюджет не указан».
+  budgetMin   Int?
+  budgetMax   Int?
+  /// Срок выполнения проекта в днях.
+  srokDays    Int?
+  /// Чекбокс «у меня есть права на публикацию этих фото» — обязателен для публикации.
+  hasPublishRights Boolean @default(false)
+  publishedAt DateTime?
+  rejectReason String?
+  /// Денормализованные счётчики для карточек ленты (пересчёт — фоновым джобом).
+  likesCount  Int @default(0)
+  savesCount  Int @default(0)
+  viewsCount  Int @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  images          CaseImage[]
+  collaborators   CaseCollaborator[]
+  styles          CaseStyle[]
+  tags            CaseTag[]
+  likes           Like[]
+  saves           Save[]
+  collectionItems CollectionItem[]
+  boostCampaigns  BoostCampaign[]
+
+  // Лента: published-кейсы по свежести; фильтры по городу/категории.
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([cityId, status, publishedAt(sort: Desc)])
+  @@index([categoryId, status])
+  @@index([authorId, status])
+}
+
+model CaseImage {
+  id         String  @id @default(cuid())
+  caseId     String
+  case       Case    @relation(fields: [caseId], references: [id])
+  /// Ключ оригинала в R2 (EXIF/GPS срезаны при перекодировании — приватность).
+  storageKey String
+  /// Варианты рендеров: { "400": {avif, webp}, "800": {...}, "1600": {...} }.
+  variants   Json
+  blurhash   String
+  width      Int
+  height     Int
+  sortOrder  Int     @default(0)
+  caption    String?
+  /// Пары «до/после»: обе картинки делят beforeAfterGroup, у «до» isBeforeImage=true.
+  isBeforeImage    Boolean @default(false)
+  beforeAfterGroup String?
+  /// Перцептивный хэш — антидубликаты внутри платформы (краденые портфолио).
+  phash      String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([caseId, sortOrder])
+  @@index([phash])
+}
+
+enum CollaboratorStatus {
+  INVITED
+  ACCEPTED
+  DECLINED
+}
+
+/// Команда проекта: совместные кейсы — рейтинг/витрина растут у всех подтвердивших.
+model CaseCollaborator {
+  id     String @id @default(cuid())
+  caseId String
+  case   Case   @relation(fields: [caseId], references: [id])
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  role   CaseAuthorRole @default(OTHER)
+  /// Кейс появляется в профиле коллеги только после ACCEPTED.
+  status CollaboratorStatus @default(INVITED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([caseId, userId])
+  @@index([userId, status])
+}
+
+model CaseStyle {
+  caseId  String
+  case    Case   @relation(fields: [caseId], references: [id])
+  styleId String
+  style   Style  @relation(fields: [styleId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@id([caseId, styleId])
+  @@index([styleId])
+}
+
+model CaseTag {
+  caseId String
+  case   Case   @relation(fields: [caseId], references: [id])
+  tagId  String
+  tag    Tag    @relation(fields: [tagId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@id([caseId, tagId])
+  @@index([tagId])
+}
+
+// =============================================================================
+// КОЛЛЕКЦИИ, ПОДПИСКИ, РЕАКЦИИ
+// =============================================================================
+
+model Collection {
+  id       String  @id @default(cuid())
+  ownerId  String
+  owner    User    @relation(fields: [ownerId], references: [id])
+  title    String
+  isPrivate Boolean @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  items  CollectionItem[]
+  briefs Brief[]
+
+  @@index([ownerId])
+}
+
+model CollectionItem {
+  id           String     @id @default(cuid())
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id])
+  caseId       String
+  case         Case       @relation(fields: [caseId], references: [id])
+  /// Опционально — конкретное фото кейса, которое сохранил пользователь.
+  caseImageId  String?
+  sortOrder    Int        @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([collectionId, caseId])
+  @@index([caseId])
+}
+
+model Follow {
+  id          String @id @default(cuid())
+  followerId  String
+  follower    User   @relation("Follower", fields: [followerId], references: [id])
+  followingId String
+  following   User   @relation("Following", fields: [followingId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+}
+
+model Like {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  caseId String
+  case   Case   @relation(fields: [caseId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, caseId])
+  @@index([caseId])
+}
+
+/// Быстрое «сохранить» (момент радости). Раскладка по коллекциям — CollectionItem.
+model Save {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  caseId String
+  case   Case   @relation(fields: [caseId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, caseId])
+  @@index([caseId])
+}
+
+// =============================================================================
+// БРИФЫ И ОТКЛИКИ
+// =============================================================================
+
+enum BriefStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+enum BriefObjectType {
+  APARTMENT
+  HOUSE
+  COMMERCIAL
+  OFFICE
+  LAND
+  OTHER
+}
+
+model Brief {
+  id          String          @id @default(cuid())
+  clientId    String
+  client      User            @relation(fields: [clientId], references: [id])
+  status      BriefStatus     @default(DRAFT)
+  title       String
+  /// Описание задачи. Публичный текст проходит автоскрытие контактов (решение 03/7).
+  description String?
+  objectType  BriefObjectType @default(APARTMENT)
+  specialization Specialization?
+  cityId      String?
+  city        City?           @relation(fields: [cityId], references: [id])
+  areaM2      Decimal?        @db.Decimal(9, 2)
+  /// Бюджет вилкой, СОМЫ (целые KGS).
+  budgetMin   Int?
+  budgetMax   Int?
+  timelineDays Int?
+  /// Референсы — коллекция-мудборд клиента.
+  referenceCollectionId String?
+  referenceCollection   Collection? @relation(fields: [referenceCollectionId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  responses BriefResponse[]
+  threads   ChatThread[]
+  orders    Order[]
+
+  @@index([status, cityId, createdAt(sort: Desc)])
+  @@index([clientId])
+}
+
+enum BriefResponseStatus {
+  SENT
+  SHORTLISTED
+  DECLINED
+  ACCEPTED
+}
+
+model BriefResponse {
+  id           String              @id @default(cuid())
+  briefId      String
+  brief        Brief               @relation(fields: [briefId], references: [id])
+  specialistId String
+  specialist   User                @relation(fields: [specialistId], references: [id])
+  status       BriefResponseStatus @default(SENT)
+  message      String
+  /// Предварительная оценка, СОМЫ (целые KGS).
+  priceEstimate Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([briefId, specialistId])
+  @@index([specialistId])
+}
+
+// =============================================================================
+// ЧАТ
+// =============================================================================
+
+model ChatThread {
+  id      String  @id @default(cuid())
+  /// Контекст возникновения треда (опционально): бриф.
+  briefId String?
+  brief   Brief?  @relation(fields: [briefId], references: [id])
+  lastMessageAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  participants ChatParticipant[]
+  messages     Message[]
+  orders       Order[]
+
+  @@index([lastMessageAt(sort: Desc)])
+}
+
+model ChatParticipant {
+  id       String     @id @default(cuid())
+  threadId String
+  thread   ChatThread @relation(fields: [threadId], references: [id])
+  userId   String
+  user     User       @relation(fields: [userId], references: [id])
+  lastReadAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+enum MessageKind {
+  TEXT
+  IMAGE
+  FILE
+}
+
+model Message {
+  id       String      @id @default(cuid())
+  threadId String
+  thread   ChatThread  @relation(fields: [threadId], references: [id])
+  senderId String
+  sender   User        @relation(fields: [senderId], references: [id])
+  kind     MessageKind @default(TEXT)
+  text     String?
+  /// Для IMAGE/FILE: ключ в R2 + метаданные ({name, size, mime, width, height, blurhash}).
+  fileKey  String?
+  fileMeta Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([threadId, createdAt])
+}
+
+// =============================================================================
+// ЗАКАЗ — state machine (см. data-model-notes.md)
+// discussion → agreed → in_progress → delivered → completed (+ cancelled, disputed)
+// =============================================================================
+
+enum OrderState {
+  DISCUSSION
+  AGREED
+  IN_PROGRESS
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+model Order {
+  id           String     @id @default(cuid())
+  clientId     String
+  client       User       @relation("OrderClient", fields: [clientId], references: [id])
+  specialistId String
+  specialist   User       @relation("OrderSpecialist", fields: [specialistId], references: [id])
+  briefId      String?
+  brief        Brief?     @relation(fields: [briefId], references: [id])
+  threadId     String?
+  thread       ChatThread? @relation(fields: [threadId], references: [id])
+  state        OrderState @default(DISCUSSION)
+  title        String
+  description  String?
+  /// Договорная сумма, СОМЫ (целые KGS). Информационное поле — платформа НЕ проводит
+  /// платежи и НЕ берёт комиссию/проценты (жёсткий принцип продукта).
+  agreedAmount Int?
+
+  // Взаимные подтверждения договорённости (антифрод: заказ = 2 верифицированных телефона).
+  clientAgreedAt     DateTime?
+  specialistAgreedAt DateTime?
+
+  // Сдача-приёмка: «сдан» предлагает специалист, подтверждает клиент.
+  deliveredAt   DateTime?
+  /// Клиент подтвердил приёмку (или сработало авто-подтверждение).
+  confirmedAt   DateTime?
+  /// Дедлайн авто-подтверждения (deliveredAt + N дней); воркер завершает заказ и шлёт уведомления.
+  autoConfirmAt DateTime?
+
+  completedAt  DateTime?
+  cancelledAt  DateTime?
+  /// userId инициатора отмены (мягкая ссылка, без FK — валидируется приложением).
+  cancelledById String?
+  cancelReason  String?
+  disputeOpenedAt DateTime?
+  disputeReason   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  checkpoints OrderCheckpoint[]
+  review      Review?
+
+  @@index([clientId, state])
+  @@index([specialistId, state])
+  @@index([state, autoConfirmAt])
+  // Velocity-антифрод: частые заказы между одной и той же парой аккаунтов.
+  @@index([clientId, specialistId, createdAt])
+}
+
+/// Чек-поинты хода работ с фотофиксацией — повышают вес будущего отзыва.
+model OrderCheckpoint {
+  id        String @id @default(cuid())
+  orderId   String
+  order     Order  @relation(fields: [orderId], references: [id])
+  createdById String
+  createdBy   User @relation(fields: [createdById], references: [id])
+  title     String
+  note      String?
+  /// Массив фото: [{storageKey, variants, blurhash, width, height}] — EXIF срезан.
+  photos    Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId, createdAt])
+}
+
+// =============================================================================
+// РЕПУТАЦИЯ
+// =============================================================================
+
+/// Отзыв — ТОЛЬКО по завершённому заказу (state=COMPLETED), автор = клиент заказа.
+/// Инварианты проверяются в packages/core (см. data-model-notes.md).
+model Review {
+  id           String @id @default(cuid())
+  orderId      String @unique // один отзыв на заказ — жёсткий констрейнт БД
+  order        Order  @relation(fields: [orderId], references: [id])
+  authorId     String
+  author       User   @relation("ReviewAuthor", fields: [authorId], references: [id])
+  specialistId String
+  specialist   User   @relation("ReviewTarget", fields: [specialistId], references: [id])
+
+  // Подшкалы 1–5.
+  scoreQuality       Int @db.SmallInt
+  scoreTimeline      Int @db.SmallInt
+  scoreCommunication Int @db.SmallInt
+  scoreBudget        Int @db.SmallInt
+
+  text   String?
+  /// Фото результата: [{storageKey, variants, blurhash, width, height}].
+  photos Json?
+  /// Вес отзыва в рейтинге (0..1): верификация клиента, наличие чек-поинтов.
+  weight Decimal @default(1.0) @db.Decimal(3, 2)
+  /// Скрыт модерацией (спор/фрод) — не участвует в агрегатах.
+  hiddenAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([specialistId, createdAt(sort: Desc)])
+}
+
+/// Денормализованные агрегаты рейтинга профиля — читается лентой/витриной,
+/// пересчитывается транзакционно при создании/скрытии отзыва (см. notes).
+model ReviewAggregate {
+  id                  String            @id @default(cuid())
+  specialistProfileId String            @unique
+  specialistProfile   SpecialistProfile @relation(fields: [specialistProfileId], references: [id])
+
+  reviewsCount       Int     @default(0)
+  avgOverall         Decimal @default(0) @db.Decimal(3, 2)
+  avgQuality         Decimal @default(0) @db.Decimal(3, 2)
+  avgTimeline        Decimal @default(0) @db.Decimal(3, 2)
+  avgCommunication   Decimal @default(0) @db.Decimal(3, 2)
+  avgBudget          Decimal @default(0) @db.Decimal(3, 2)
+  completedOrdersCount Int   @default(0)
+  /// % повторных клиентов (0–100) — публичная честная метрика.
+  repeatClientsPct   Decimal @default(0) @db.Decimal(5, 2)
+  recalculatedAt     DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([avgOverall(sort: Desc)])
+}
+
+// =============================================================================
+// ВЕРИФИКАЦИЯ, ЖАЛОБЫ, МОДЕРАЦИЯ
+// =============================================================================
+
+enum VerificationKind {
+  IDENTITY // личность
+  BUSINESS // юрлицо / патент
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Verification {
+  id     String             @id @default(cuid())
+  userId String
+  user   User               @relation(fields: [userId], references: [id])
+  kind   VerificationKind
+  status VerificationStatus @default(PENDING)
+  /// Документы в приватном бакете R2: [{storageKey, name}]. Никогда не публично.
+  documents    Json
+  /// userId модератора (мягкая ссылка, без FK).
+  reviewedById String?
+  reviewedAt   DateTime?
+  rejectReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, kind, status])
+  @@index([status, createdAt])
+}
+
+enum ReportTargetType {
+  CASE
+  REVIEW
+  USER
+  BRIEF
+  MESSAGE
+  COLLECTION
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportReason {
+  STOLEN_CONTENT
+  SPAM
+  CONTACTS_IN_PUBLIC
+  OFFENSIVE
+  FAKE
+  OTHER
+}
+
+model Report {
+  id         String           @id @default(cuid())
+  reporterId String
+  reporter   User             @relation(fields: [reporterId], references: [id])
+  targetType ReportTargetType
+  /// Полиморфная ссылка: id сущности targetType (FK нет — валидируется приложением).
+  targetId   String
+  reason     ReportReason
+  comment    String?
+  status     ReportStatus     @default(OPEN)
+  resolvedById String?
+  resolvedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+}
+
+enum ModerationEntityType {
+  CASE
+  REVIEW
+  USER
+  BRIEF
+  MESSAGE
+  ORDER
+  ORGANIZATION
+  VERIFICATION
+}
+
+enum ModerationReason {
+  NEW_USER_PREMOD    // trust-tier NEW: премодерация первых кейсов
+  PHASH_DUPLICATE    // совпадение перцептивного хэша
+  VELOCITY_ANOMALY   // аномалия частоты заказов/отзывов
+  REPORTED           // жалобы пользователей
+  CONTACT_LEAK       // контакты в публичном контенте
+  DISPUTE            // арбитраж спора по заказу
+  MANUAL             // ручная постановка админом
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ESCALATED
+}
+
+/// Единая очередь модерации — полиморфно по (entityType, entityId).
+model ModerationItem {
+  id         String               @id @default(cuid())
+  entityType ModerationEntityType
+  entityId   String
+  reason     ModerationReason
+  status     ModerationStatus     @default(PENDING)
+  /// Контекст для модератора: id жалоб, phash-совпадения, метрики аномалии.
+  payload    Json?
+  assigneeId String?
+  resolvedById String?
+  resolvedAt   DateTime?
+  resolution   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([entityType, entityId])
+}
+
+// =============================================================================
+// УВЕДОМЛЕНИЯ
+// In-app центр = источник истины; Telegram и PWA push — каналы доставки.
+// =============================================================================
+
+enum NotificationType {
+  CASE_PUBLISHED
+  CASE_REJECTED
+  NEW_FOLLOWER
+  CASE_LIKED
+  CASE_SAVED
+  COLLAB_INVITED
+  BRIEF_RESPONSE
+  BRIEF_RESPONSE_ACCEPTED
+  NEW_MESSAGE
+  ORDER_STATE_CHANGED
+  ORDER_DELIVERED
+  ORDER_AUTO_CONFIRM_SOON
+  REVIEW_RECEIVED
+  VERIFICATION_RESULT
+  MODERATION_RESULT
+  SYSTEM
+}
+
+model Notification {
+  id     String           @id @default(cuid())
+  userId String
+  user   User             @relation(fields: [userId], references: [id])
+  type   NotificationType
+  title  String
+  body   String?
+  /// Deep-link данные: {caseId | orderId | threadId | url ...}.
+  payload Json?
+  readAt  DateTime?
+  /// Отметки доставки по каналам (null = не отправлялось/не доставлено).
+  telegramSentAt DateTime?
+  pushSentAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+}
+
+// =============================================================================
+// МОНЕТИЗАЦИЯ: планы, entitlements, промокоды, буст
+// Никаких кредитных/процентных механик. На старте PRO — вручную/промокодами.
+// =============================================================================
+
+enum PlanCode {
+  FREE
+  PRO
+}
+
+model Plan {
+  id   String   @id @default(cuid())
+  code PlanCode @unique
+  name String
+  /// Цена, СОМЫ в месяц (целые KGS). 0 = бесплатно.
+  priceMonthly Int @default(0)
+  // Лимиты; null = безлимит (PRO).
+  maxPublishedCases        Int? // Free = 5
+  maxBriefResponsesMonthly Int?
+  hasAnalytics     Boolean @default(false)
+  hasPriorityFeed  Boolean @default(false)
+  hasShowcaseMode  Boolean @default(false)
+  isActive         Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entitlements Entitlement[]
+  promoCodes   PromoCode[]
+}
+
+enum EntitlementStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum EntitlementSource {
+  DEFAULT // Free по умолчанию
+  MANUAL  // активирован админом
+  PROMO   // промокод
+  PAYMENT // Фаза 1.5+: PaymentProvider (Mbank/O!Деньги/…)
+}
+
+model Entitlement {
+  id     String            @id @default(cuid())
+  userId String
+  user   User              @relation(fields: [userId], references: [id])
+  planId String
+  plan   Plan              @relation(fields: [planId], references: [id])
+  status EntitlementStatus @default(ACTIVE)
+  source EntitlementSource @default(DEFAULT)
+  startsAt  DateTime  @default(now())
+  expiresAt DateTime? // null = бессрочно (Free)
+  promoCodeId String?
+  promoCode   PromoCode? @relation(fields: [promoCodeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([status, expiresAt])
+}
+
+model PromoCode {
+  id     String @id @default(cuid())
+  code   String @unique
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+  /// Срок действия выданного PRO в днях.
+  durationDays   Int
+  maxRedemptions Int  @default(1)
+  redeemedCount  Int  @default(0)
+  expiresAt      DateTime?
+  /// userId админа-создателя (мягкая ссылка).
+  createdById    String?
+  isActive       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entitlements Entitlement[]
+}
+
+enum BoostStatus {
+  SCHEDULED
+  ACTIVE
+  FINISHED
+  CANCELLED
+}
+
+/// Платный буст кейса или профиля. В выдаче всегда с пометкой «продвижение».
+model BoostCampaign {
+  id     String      @id @default(cuid())
+  status BoostStatus @default(SCHEDULED)
+  // Цель — ровно одна из двух (XOR валидируется приложением).
+  caseId String?
+  case   Case?       @relation(fields: [caseId], references: [id])
+  specialistProfileId String?
+  specialistProfile   SpecialistProfile? @relation(fields: [specialistProfileId], references: [id])
+  startsAt DateTime
+  endsAt   DateTime
+  /// Стоимость кампании, СОМЫ (целые KGS). Фиксированная цена — не аукцион, не проценты.
+  priceSom Int
+  impressionsCount Int @default(0)
+  clicksCount      Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, startsAt, endsAt])
+}
+
+// =============================================================================
+// СЕРВИСНОЕ: курсы валют, событийная аналитика
+// =============================================================================
+
+/// Курс НБКР, обновляется раз в сутки воркером. Используется только для
+/// ОТОБРАЖЕНИЯ цен в USD — все хранимые суммы остаются в сомах.
+/// Фаза 2 (KZT/UZS): просто новые пары валют, схема не меняется.
+model ExchangeRate {
+  id            String   @id @default(cuid())
+  baseCurrency  String   @default("KGS") // ISO 4217
+  quoteCurrency String // "USD", Фаза 2: "KZT", "UZS"
+  rate          Decimal  @db.Decimal(14, 6)
+  rateDate      DateTime @db.Date
+  source        String   @default("NBKR")
+
+  createdAt DateTime @default(now())
+
+  @@unique([baseCurrency, quoteCurrency, rateDate])
+}
+
+/// Transactional outbox для событийной аналитики (PostHog) — событие пишется
+/// в одной транзакции с доменным изменением, воркер доставляет и помечает.
+model AnalyticsOutbox {
+  id        BigInt   @id @default(autoincrement())
+  eventName String
+  /// Актор события (userId или анонимный id гостя) — без FK, событие переживает пользователя.
+  actorId   String?
+  /// Свойства события по событийной схеме packages/core/analytics.
+  props     Json
+  occurredAt  DateTime @default(now())
+  deliveredAt DateTime?
+
+  @@index([deliveredAt, occurredAt])
+  @@index([eventName, occurredAt])
+}
