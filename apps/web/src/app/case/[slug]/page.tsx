@@ -35,8 +35,9 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
       <main className="mx-auto max-w-[1160px] px-4 pb-28 sm:px-6 md:pb-20">
         <header className="pt-8 sm:pt-12">
           <div className="flex flex-wrap items-center gap-2">
+            {/* нейтральные чипы как в профиле; accent-soft — только интерактиву */}
             {item.styles.map((st) => (
-              <Badge key={st} variant="accent" size="md">
+              <Badge key={st} variant="neutral" size="md">
                 {st}
               </Badge>
             ))}
@@ -234,7 +235,10 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
       <SiteFooter className="max-md:pb-24" />
 
       {/* мобильный CTA в зоне большого пальца */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md md:hidden">
+      <div
+        data-fixed-bar
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md md:hidden"
+      >
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1 pl-1">
             <p className="truncate text-[13px] font-semibold">{author.name}</p>

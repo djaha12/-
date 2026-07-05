@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { MapPin, Search } from 'lucide-react'
+import { MapPin, Menu, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 
@@ -63,6 +63,10 @@ export function SiteHeader() {
           {/* один терракотовый primary на экран — у хедера только soft */}
           <Button variant="soft" size="sm" className="hidden md:inline-flex">
             Я специалист
+          </Button>
+          {/* мобильная навигация: Проекты/Специалисты/Брифы + «Я специалист» */}
+          <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Меню">
+            <Menu />
           </Button>
         </div>
       </div>

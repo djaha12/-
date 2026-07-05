@@ -83,17 +83,15 @@ export default function FeedPage() {
           ))}
         </section>
 
-        {/* хвост бесконечной ленты: у каждой колонки есть «продолжение» */}
+        {/* хвост бесконечной ленты: ровная кромка перед футером */}
         <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4" aria-hidden>
-          {(['aspect-[3/4]', 'aspect-[4/3]', 'aspect-square', 'aspect-[3/4]'] as const).map(
-            (aspect, i) => (
-              <div key={i} className={cn(i === 3 && 'md:max-xl:hidden')}>
-                <Skeleton className={cn('w-full rounded-xl', aspect)} />
-                <Skeleton className="mt-2.5 h-4 w-3/4" />
-                <Skeleton className="mt-2 h-3.5 w-1/2" />
-              </div>
-            ),
-          )}
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className={cn(i === 3 && 'md:max-xl:hidden')}>
+              <Skeleton className="aspect-[3/4] w-full rounded-xl" />
+              <Skeleton className="mt-2.5 h-4 w-3/4" />
+              <Skeleton className="mt-2 h-3.5 w-1/2" />
+            </div>
+          ))}
         </div>
       </main>
       <SiteFooter />

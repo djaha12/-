@@ -67,9 +67,26 @@ try {
       for (const route of ROUTES) {
         await page.goto(`${BASE}${route.path}`, { waitUntil: 'networkidle' })
         await page.waitForTimeout(400) // дождаться шрифтов/анимаций
+
+        // фиксированные бары в fullPage рисуются посреди страницы — прячем их,
+        // а их реальное положение фиксируем отдельным кадром первого экрана
+        const hasBar = await page.evaluate(() => {
+          const bars = document.querySelectorAll('[data-fixed-bar]')
+          for (const b of bars) b.style.visibility = 'hidden'
+          return bars.length > 0 && getComputedStyle(bars[0]).display !== 'none'
+        })
         const file = path.join(OUT, `${route.name}--${vp.name}--${theme}.png`)
         await page.screenshot({ path: file, fullPage: true })
         console.log(`✓ ${path.basename(file)}`)
+
+        if (hasBar) {
+          await page.evaluate(() => {
+            for (const b of document.querySelectorAll('[data-fixed-bar]')) b.style.visibility = ''
+          })
+          const vpFile = path.join(OUT, `${route.name}--${vp.name}--${theme}--viewport.png`)
+          await page.screenshot({ path: vpFile })
+          console.log(`✓ ${path.basename(vpFile)}`)
+        }
       }
       await page.close()
     }

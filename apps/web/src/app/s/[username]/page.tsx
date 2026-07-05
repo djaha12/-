@@ -131,7 +131,7 @@ export default async function ProfilePage({
                     {s.repeatClientsPct}%
                   </span>
                 ),
-                sub: 'возвращаются с новым проектом',
+                sub: 'возвращаются снова',
               },
               {
                 dt: 'Отвечает',
@@ -167,9 +167,10 @@ export default async function ProfilePage({
           </TabsList>
 
           <TabsContent value="cases">
-            <div className="columns-2 gap-5 lg:columns-3">
+            {/* в витрине специалиста — ровные ряды (Behance), masonry только в ленте */}
+            <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
               {ownCases.map((c) => (
-                <CaseCard key={c.id} item={c} hideAuthor />
+                <CaseCard key={c.id} item={c} hideAuthor frame="fixed" />
               ))}
             </div>
           </TabsContent>
@@ -210,6 +211,12 @@ export default async function ProfilePage({
                 {reviews.map((r) => (
                   <ReviewCard key={r.id} review={r} />
                 ))}
+                <div className="flex justify-center pt-2">
+                  <Button variant="secondary">
+                    Показать ещё {s.reviewsCount - reviews.length}{' '}
+                    {plural(s.reviewsCount - reviews.length, 'отзыв', 'отзыва', 'отзывов')}
+                  </Button>
+                </div>
               </div>
             </div>
           </TabsContent>
@@ -237,7 +244,10 @@ export default async function ProfilePage({
       <SiteFooter className="max-sm:pb-24" />
 
       {/* мобильный CTA в зоне большого пальца */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:hidden">
+      <div
+        data-fixed-bar
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:hidden"
+      >
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1 pl-1">
             <p className="truncate text-[13px] font-semibold">{s.name}</p>

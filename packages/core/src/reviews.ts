@@ -25,7 +25,7 @@ export function canSubmitReview(input: ReviewGateInput): ReviewGate {
     return { allowed: false, reason: 'Отзыв может оставить только клиент этого заказа.' }
   }
   if (input.alreadyReviewed) {
-    return { allowed: false, reason: 'По этому заказу отзыв уже оставлен. Его можно отредактировать в течение 30 дней.' }
+    return { allowed: false, reason: 'По этому заказу отзыв уже оставлен. Его можно отредактировать в течение 72 часов.' }
   }
   return { allowed: true }
 }
