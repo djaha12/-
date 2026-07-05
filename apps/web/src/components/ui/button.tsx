@@ -14,7 +14,7 @@ const buttonVariants = cva(
           'border border-border-strong bg-surface text-foreground hover:border-foreground/40 hover:bg-surface-muted',
         soft: 'bg-accent-soft text-accent-soft-foreground hover:bg-accent-soft/70',
         ghost: 'text-foreground hover:bg-surface-muted',
-        danger: 'bg-danger text-white hover:opacity-90',
+        danger: 'bg-danger text-danger-foreground hover:opacity-90',
       },
       size: {
         sm: 'h-9 px-4 text-[13px] [&_svg]:size-4',
@@ -51,8 +51,14 @@ function Button({
   const Comp = asChild ? Slot : 'button'
   return (
     <Comp
-      className={cn(buttonVariants({ variant, size }), className)}
-      disabled={disabled ?? loading}
+      className={cn(
+        buttonVariants({ variant, size }),
+        // loading ≠ disabled: полная насыщенность, спиннера достаточно
+        loading && 'pointer-events-none',
+        className,
+      )}
+      aria-busy={loading || undefined}
+      disabled={disabled}
       {...props}
     >
       {loading ? (

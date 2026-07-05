@@ -9,7 +9,11 @@ description: Дизайн-система, конвенции кода и чек-
 - Фон: тёплая бумага `background` / глубокий графит в dark. Поверхности: `surface`, `surface-muted`.
 - ОДИН акцент — терракота (`accent`, `accent-soft`). Семантические (`success`/`danger`/`warning`) — редко и приглушённо.
 - Шрифты: `font-sans` = Manrope Variable (UI), `font-display` = Lora Variable (заголовки, крупные цифры).
-- Spacing строго 4px-сетка (tailwind-шкала). Радиусы: `rounded-xl` для карточек/фото, `rounded-full` для контролов.
+- Spacing строго 4px-сетка (tailwind-шкала). Радиусы: `rounded-xl` — карточки/фото в сетках,
+  `rounded-2xl` — hero-поверхности на всю ширину контента (обложка, герой галереи, крупные панели),
+  `rounded-full` — контролы.
+- Токен `faint-foreground` — только декоративные подписи и плейсхолдеры; смысловой мелкий текст — `muted-foreground`.
+- Хедер никогда не несёт терракотовый primary («Я специалист» = soft) — примат главной конверсии экрана.
 - Motion: 150–250ms, `ease-(--ease-soft)`. Анимации: `animate-fade-up`, `animate-save-pop`. Никакого «цирка».
 - Тени: `shadow-card`, `shadow-float` — тёплые, едва заметные. Elevation через тень+бордер, не через тёмные оверлеи.
 

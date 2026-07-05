@@ -4,25 +4,51 @@ import { Bookmark } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { SaveButton } from '@/components/save-button'
 import { img, specialistBySlug, type CaseItem } from '@/mock/data'
+import { cn } from '@/lib/utils'
 
-export function CaseCard({ item }: { item: CaseItem }) {
+interface CaseCardProps {
+  item: CaseItem
+  /** в профиле автора подпись избыточна — показываем район */
+  hideAuthor?: boolean
+  /** natural — masonry-лента; fixed — ровные сетки (похожие проекты) */
+  frame?: 'natural' | 'fixed'
+}
+
+export function CaseCard({ item, hideAuthor = false, frame = 'natural' }: CaseCardProps) {
   const image = img(item.imageId)
   const author = specialistBySlug(item.specialistSlug)
 
   return (
-    <article className="group mb-5 break-inside-avoid">
-      <div className="relative overflow-hidden rounded-xl bg-surface-muted">
+    <article className={cn('group', frame === 'natural' && 'mb-5 break-inside-avoid')}>
+      <div
+        className={cn(
+          'relative overflow-hidden rounded-xl bg-surface-muted',
+          frame === 'fixed' && 'aspect-[4/3]',
+        )}
+      >
         <Link href={`/case/${item.slug}`} aria-label={item.title}>
-          <Image
-            src={image.src}
-            alt={item.title}
-            width={image.width}
-            height={image.height}
-            placeholder="blur"
-            blurDataURL={image.blurDataURL}
-            sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
-            className="block w-full transition-transform duration-300 ease-(--ease-soft) group-hover:scale-[1.025]"
-          />
+          {frame === 'fixed' ? (
+            <Image
+              src={image.src}
+              alt={item.title}
+              fill
+              placeholder="blur"
+              blurDataURL={image.blurDataURL}
+              sizes="(max-width: 1024px) 50vw, 280px"
+              className="object-cover transition-transform duration-300 ease-(--ease-soft) group-hover:scale-[1.025]"
+            />
+          ) : (
+            <Image
+              src={image.src}
+              alt={item.title}
+              width={image.width}
+              height={image.height}
+              placeholder="blur"
+              blurDataURL={image.blurDataURL}
+              sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
+              className="block w-full transition-transform duration-300 ease-(--ease-soft) group-hover:scale-[1.025]"
+            />
+          )}
           <span
             className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100"
             aria-hidden
@@ -46,14 +72,19 @@ export function CaseCard({ item }: { item: CaseItem }) {
           {item.title}
         </Link>
         <div className="mt-1.5 flex items-center justify-between gap-2">
-          <Link
-            href={`/s/${author.slug}`}
-            className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground"
-          >
-            <Avatar name={author.name} className="size-6 text-[10px]" />
-            <span className="truncate">{author.name}</span>
-          </Link>
-          <span className="flex shrink-0 items-center gap-1 text-xs text-faint-foreground">
+          {hideAuthor ? (
+            <span className="truncate text-[13px] text-muted-foreground">{item.location}</span>
+          ) : (
+            <Link
+              href={`/s/${author.slug}`}
+              className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground sm:gap-2"
+            >
+              {/* на 390 в 2 колонки аватар съедает имя — носитель доверия важнее */}
+              <Avatar name={author.name} className="size-6 text-[10px] max-sm:hidden" />
+              <span className="truncate">{author.name}</span>
+            </Link>
+          )}
+          <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
             <Bookmark className="size-3.5" aria-hidden />
             {item.saves}
           </span>

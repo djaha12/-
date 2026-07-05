@@ -27,7 +27,8 @@ export function SaveButton({ floating = false, defaultSaved = false, className }
       className={cn(
         'inline-flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors duration-150 ease-(--ease-soft)',
         floating
-          ? 'bg-background/90 text-foreground shadow-card backdrop-blur-sm hover:bg-background'
+          ? // на тач-устройствах кнопка видна всегда — тихий тёмный скрим, не конкурирует с фото
+            'bg-black/35 text-white backdrop-blur-sm hover:bg-black/50 md:bg-background/90 md:text-foreground md:shadow-card md:hover:bg-background'
           : 'text-muted-foreground hover:bg-surface-muted hover:text-foreground',
         saved && 'text-accent hover:text-accent',
         className,

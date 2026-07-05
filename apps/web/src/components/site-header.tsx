@@ -44,16 +44,24 @@ export function SiteHeader() {
           />
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5 md:ml-0 ml-auto">
-          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground">
+        <div className="flex shrink-0 items-center gap-1 md:ml-0 ml-auto">
+          <Button variant="ghost" size="icon" className="md:hidden" aria-label="Поиск">
+            <Search />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground max-md:h-11 max-sm:px-2.5"
+          >
             <MapPin aria-hidden />
-            Бишкек
+            <span className="max-[400px]:sr-only">Бишкек</span>
           </Button>
           <ThemeToggle />
-          <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
+          <Button variant="ghost" size="sm" className="max-md:h-11">
             Войти
           </Button>
-          <Button size="sm" className="hidden md:inline-flex">
+          {/* один терракотовый primary на экран — у хедера только soft */}
+          <Button variant="soft" size="sm" className="hidden md:inline-flex">
             Я специалист
           </Button>
         </div>

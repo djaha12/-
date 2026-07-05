@@ -1,4 +1,5 @@
 import { ChevronDown, SlidersHorizontal } from 'lucide-react'
+import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { CaseCard } from '@/components/case-card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -29,7 +30,7 @@ function FilterChip({
     <button
       type="button"
       className={cn(
-        'inline-flex h-10 shrink-0 cursor-pointer items-center gap-1 rounded-full border px-4 text-sm font-medium transition-colors duration-150',
+        'inline-flex h-11 shrink-0 cursor-pointer items-center gap-1 rounded-full border px-4 text-sm font-medium transition-colors duration-150',
         active
           ? 'border-foreground bg-foreground text-background'
           : 'border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground',
@@ -56,7 +57,10 @@ export default function FeedPage() {
           </p>
         </section>
 
-        <section aria-label="Фильтры" className="sticky top-16 z-30 -mx-4 bg-background/85 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6">
+        <section
+          aria-label="Фильтры"
+          className="sticky top-16 z-30 -mx-4 border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6"
+        >
           <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {PROFESSIONS.map((p, i) => (
               <FilterChip key={p} active={i === 0}>
@@ -77,19 +81,22 @@ export default function FeedPage() {
           {cases.map((item) => (
             <CaseCard key={item.id} item={item} />
           ))}
-          {/* хвост бесконечной ленты — skeleton-подгрузка */}
-          <div className="mb-5 break-inside-avoid" aria-hidden>
-            <Skeleton className="aspect-[3/4] w-full rounded-xl" />
-            <Skeleton className="mt-2.5 h-4 w-3/4" />
-            <Skeleton className="mt-2 h-3.5 w-1/2" />
-          </div>
-          <div className="mb-5 break-inside-avoid" aria-hidden>
-            <Skeleton className="aspect-[4/3] w-full rounded-xl" />
-            <Skeleton className="mt-2.5 h-4 w-2/3" />
-            <Skeleton className="mt-2 h-3.5 w-1/2" />
-          </div>
         </section>
+
+        {/* хвост бесконечной ленты: у каждой колонки есть «продолжение» */}
+        <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4" aria-hidden>
+          {(['aspect-[3/4]', 'aspect-[4/3]', 'aspect-square', 'aspect-[3/4]'] as const).map(
+            (aspect, i) => (
+              <div key={i} className={cn(i === 3 && 'md:max-xl:hidden')}>
+                <Skeleton className={cn('w-full rounded-xl', aspect)} />
+                <Skeleton className="mt-2.5 h-4 w-3/4" />
+                <Skeleton className="mt-2 h-3.5 w-1/2" />
+              </div>
+            ),
+          )}
+        </div>
       </main>
+      <SiteFooter />
     </>
   )
 }

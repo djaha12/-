@@ -19,7 +19,8 @@
   /* текст */
   --foreground: oklch(0.245 0.012 50); /* тёплый графит */
   --muted-foreground: oklch(0.5 0.014 55);
-  --faint-foreground: oklch(0.63 0.012 65);
+  /* только декоративные подписи ≥14px и плейсхолдеры; смысловой мелкий текст — muted-foreground */
+  --faint-foreground: oklch(0.55 0.012 65);
 
   /* акцент — терракота, ЕДИНСТВЕННЫЙ цветной */
   --accent: oklch(0.545 0.122 40);
@@ -32,6 +33,7 @@
   --success: oklch(0.545 0.09 155);
   --success-soft: oklch(0.94 0.03 155);
   --danger: oklch(0.55 0.15 27);
+  --danger-foreground: oklch(0.985 0.005 80);
   --danger-soft: oklch(0.945 0.028 27);
   --warning: oklch(0.62 0.11 80);
 
@@ -51,7 +53,7 @@
 
   --foreground: oklch(0.928 0.006 85);
   --muted-foreground: oklch(0.702 0.009 80);
-  --faint-foreground: oklch(0.56 0.009 80);
+  --faint-foreground: oklch(0.65 0.009 80);
 
   --accent: oklch(0.685 0.115 45);
   --accent-hover: oklch(0.73 0.11 47);
@@ -62,6 +64,7 @@
   --success: oklch(0.7 0.09 155);
   --success-soft: oklch(0.3 0.032 155);
   --danger: oklch(0.7 0.13 27);
+  --danger-foreground: oklch(0.185 0.02 27);
   --danger-soft: oklch(0.3 0.03 27);
   --warning: oklch(0.75 0.1 82);
 
@@ -88,6 +91,7 @@
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
   --color-danger-soft: var(--danger-soft);
   --color-warning: var(--warning);
   --color-inverse: var(--inverse);

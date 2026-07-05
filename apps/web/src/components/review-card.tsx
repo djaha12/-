@@ -38,7 +38,8 @@ export function ReviewCard({ review }: { review: Review }) {
             {label} {review[key]},0
           </Badge>
         ))}
-        <Badge variant="success" className="ml-auto">
+        {/* маркер доверия: на 390 — своя строка, не пятая подшкала */}
+        <Badge variant="success" className="ml-auto max-sm:mt-1 max-sm:ml-0 max-sm:basis-full">
           Заказ выполнен через Ателье
         </Badge>
       </div>

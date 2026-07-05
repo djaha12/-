@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { Images, MapPin, Share2 } from 'lucide-react'
+import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -61,12 +62,12 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
                 </span>
               </span>
             </Link>
+            {/* один primary на экран: на десктопе — sticky-панель, на мобиле — нижний бар */}
             <div className="flex shrink-0 items-center gap-2">
               <SaveButton className="rounded-full border border-border-strong bg-surface hover:bg-surface-muted" />
               <Button variant="secondary" size="icon" aria-label="Поделиться кейсом">
                 <Share2 />
               </Button>
-              <Button className="hidden md:inline-flex">Отправить заявку</Button>
             </div>
           </div>
         </header>
@@ -131,7 +132,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
                   {p.dt}
                 </dt>
                 <dd className="mt-1 text-[15px] font-bold sm:text-base">{p.dd}</dd>
-                <p className="mt-0.5 text-xs text-faint-foreground">{p.sub}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{p.sub}</p>
               </div>
             ))}
           </dl>
@@ -201,7 +202,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
             ) : null}
           </div>
 
-          <aside className="h-fit rounded-2xl border border-border bg-surface p-6 lg:sticky lg:top-24">
+          <aside className="h-fit rounded-2xl border border-border bg-surface p-6 max-md:hidden lg:sticky lg:top-24">
             <p className="font-display text-xl font-semibold tracking-tight">
               Хотите похожий проект?
             </p>
@@ -212,7 +213,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
             <Button size="lg" className="mt-4 w-full">
               Отправить заявку
             </Button>
-            <p className="mt-3 text-center text-xs text-faint-foreground">
+            <p className="mt-3 text-center text-xs text-muted-foreground">
               Телефон откроется после отклика специалиста
             </p>
           </aside>
@@ -222,16 +223,18 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
           <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
             Похожие проекты
           </h2>
-          <div className="mt-5 columns-2 gap-5 lg:columns-4">
+          {/* ровная сетка: masonry только в ленте */}
+          <div className="mt-5 grid grid-cols-2 gap-5 lg:grid-cols-4">
             {related.map((c) => (
-              <CaseCard key={c.id} item={c} />
+              <CaseCard key={c.id} item={c} frame="fixed" />
             ))}
           </div>
         </section>
       </main>
+      <SiteFooter className="max-md:pb-24" />
 
       {/* мобильный CTA в зоне большого пальца */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 backdrop-blur-md md:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md md:hidden">
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1 pl-1">
             <p className="truncate text-[13px] font-semibold">{author.name}</p>

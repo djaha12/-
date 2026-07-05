@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { Clock, MapPin, Repeat2, Share2 } from 'lucide-react'
+import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -16,7 +17,7 @@ import { formatSom, plural } from '@/lib/utils'
 const SUBSCALE_SUMMARY = [
   { label: 'Качество', value: 4.9 },
   { label: 'Сроки', value: 4.7 },
-  { label: 'Коммуникация', value: 4.9 },
+  { label: 'Общение', value: 4.9 },
   { label: 'Бюджет', value: 4.8 },
 ]
 
@@ -36,7 +37,7 @@ export default async function ProfilePage({
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto max-w-[1160px] px-4 pb-24 sm:px-6">
+      <main className="mx-auto max-w-[1160px] px-4 pb-28 sm:px-6 sm:pb-24">
         <div className="relative mt-0 -mx-4 h-44 overflow-hidden sm:mx-0 sm:mt-5 sm:h-64 sm:rounded-2xl">
           <Image
             src={cover.src}
@@ -79,7 +80,8 @@ export default async function ProfilePage({
             </div>
 
             <div className="flex items-center gap-2 pb-1">
-              <Button size="lg" className="max-sm:flex-1">
+              {/* на мобильном primary живёт в нижнем баре — зона большого пальца */}
+              <Button size="lg" className="max-sm:hidden">
                 Отправить заявку
               </Button>
               <SaveButton className="rounded-full border border-border-strong bg-surface hover:bg-surface-muted" />
@@ -106,7 +108,9 @@ export default async function ProfilePage({
                 dt: 'Рейтинг',
                 dd: (
                   <span className="flex items-center gap-1.5">
-                    <span className="text-lg font-bold">{s.rating.toFixed(1).replace('.', ',')}</span>
+                    <span className="font-display text-[22px] font-semibold">
+                      {s.rating.toFixed(1).replace('.', ',')}
+                    </span>
                     <RatingStars value={s.rating} size={13} />
                   </span>
                 ),
@@ -114,13 +118,15 @@ export default async function ProfilePage({
               },
               {
                 dt: 'Проекты',
-                dd: <span className="text-lg font-bold">{s.projectsCount}</span>,
+                dd: (
+                  <span className="font-display text-[22px] font-semibold">{s.projectsCount}</span>
+                ),
                 sub: 'завершены через Ателье',
               },
               {
                 dt: 'Повторные клиенты',
                 dd: (
-                  <span className="flex items-center gap-1.5 text-lg font-bold">
+                  <span className="flex items-center gap-1.5 font-display text-[22px] font-semibold">
                     <Repeat2 className="size-4.5 text-success" aria-hidden />
                     {s.repeatClientsPct}%
                   </span>
@@ -130,7 +136,7 @@ export default async function ProfilePage({
               {
                 dt: 'Отвечает',
                 dd: (
-                  <span className="flex items-center gap-1.5 text-lg font-bold">
+                  <span className="flex items-center gap-1.5 font-display text-[22px] font-semibold">
                     <Clock className="size-4.5 text-muted-foreground" aria-hidden />
                     {s.responseTime}
                   </span>
@@ -163,7 +169,7 @@ export default async function ProfilePage({
           <TabsContent value="cases">
             <div className="columns-2 gap-5 lg:columns-3">
               {ownCases.map((c) => (
-                <CaseCard key={c.id} item={c} />
+                <CaseCard key={c.id} item={c} hideAuthor />
               ))}
             </div>
           </TabsContent>
@@ -189,7 +195,7 @@ export default async function ProfilePage({
                       </span>
                       <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-muted">
                         <span
-                          className="block h-full rounded-full bg-accent"
+                          className="block h-full rounded-full bg-foreground/45"
                           style={{ width: `${(row.value / 5) * 100}%` }}
                         />
                       </span>
@@ -228,6 +234,20 @@ export default async function ProfilePage({
           </TabsContent>
         </Tabs>
       </main>
+      <SiteFooter className="max-sm:pb-24" />
+
+      {/* мобильный CTA в зоне большого пальца */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:hidden">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1 pl-1">
+            <p className="truncate text-[13px] font-semibold">{s.name}</p>
+            <p className="truncate text-xs text-muted-foreground">отвечает {s.responseTime}</p>
+          </div>
+          <Button size="lg" className="flex-[1.4]">
+            Отправить заявку
+          </Button>
+        </div>
+      </div>
     </>
   )
 }
