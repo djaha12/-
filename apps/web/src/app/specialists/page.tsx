@@ -1,10 +1,14 @@
 import type { Metadata } from 'next'
-import { ChevronDown } from 'lucide-react'
+import Link from 'next/link'
+import { SearchX } from 'lucide-react'
+import { EmptyState } from '@/components/empty-state'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { SpecialistCard } from '@/components/specialist-card'
-import { casesOf, specialists } from '@/mock/data'
+import { getDistricts, getSpecialists } from '@/server/data'
 import { cn } from '@/lib/utils'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Специалисты',
@@ -13,29 +17,39 @@ export const metadata: Metadata = {
 }
 
 // риелторы — приоритетная вертикаль: сразу после «Все»
-const FILTERS = [
-  'Все',
-  'Риелторы',
-  'Дизайн интерьера',
-  'Архитектура',
-  'Ландшафт',
-  'Хоумстейджинг',
-  '3D',
-  'Фото',
+const FILTERS: Array<{ label: string; value?: string }> = [
+  { label: 'Все' },
+  { label: 'Риелторы', value: 'REALTOR' },
+  { label: 'Дизайн интерьера', value: 'INTERIOR_DESIGNER' },
+  { label: 'Архитектура', value: 'ARCHITECT' },
+  { label: 'Ландшафт', value: 'LANDSCAPE_DESIGNER' },
+  { label: 'Хоумстейджинг', value: 'DECORATOR_STAGER' },
+  { label: '3D', value: 'VISUALIZER_3D' },
+  { label: 'Фото', value: 'PHOTO_VIDEO' },
 ]
 
-/** риелторы первыми, дальше — по рейтингу; пустые портфолио в конец */
-const ordered = [...specialists].sort((a, b) => {
-  const aEmpty = casesOf(a.slug).length === 0 ? 1 : 0
-  const bEmpty = casesOf(b.slug).length === 0 ? 1 : 0
-  if (aEmpty !== bEmpty) return aEmpty - bEmpty
-  const aRealtor = a.dealStats ? 1 : 0
-  const bRealtor = b.dealStats ? 1 : 0
-  if (aRealtor !== bRealtor) return bRealtor - aRealtor
-  return b.rating - a.rating || b.reviewsCount - a.reviewsCount
-})
+function chipHref(params: { spec?: string; district?: string; q?: string }) {
+  const p = new URLSearchParams()
+  if (params.spec) p.set('spec', params.spec)
+  if (params.district) p.set('district', params.district)
+  if (params.q) p.set('q', params.q)
+  const s = p.toString()
+  return s ? `/specialists?${s}` : '/specialists'
+}
 
-export default function SpecialistsPage() {
+export default async function SpecialistsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ spec?: string; district?: string; q?: string }>
+}) {
+  const { spec, district, q } = await searchParams
+  const [items, districts] = await Promise.all([
+    getSpecialists({ specialization: spec, districtSlug: district, q }),
+    getDistricts(),
+  ])
+  // район имеет смысл в первую очередь для риелторов
+  const showDistricts = !spec || spec === 'REALTOR'
+
   return (
     <>
       <SiteHeader />
@@ -45,8 +59,16 @@ export default function SpecialistsPage() {
             Специалисты
           </h1>
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted-foreground sm:text-base">
-            Выбирайте по реальным работам и отзывам — они оставляются только по завершённым
-            заказам.
+            {q ? (
+              <>
+                Результаты по запросу «{q}» ·{' '}
+                <Link href={chipHref({ spec, district })} className="font-medium text-foreground underline underline-offset-2">
+                  сбросить
+                </Link>
+              </>
+            ) : (
+              'Выбирайте по реальным работам и отзывам — они оставляются только по завершённым заказам.'
+            )}
           </p>
         </section>
 
@@ -55,37 +77,62 @@ export default function SpecialistsPage() {
           className="sticky top-16 z-30 -mx-4 border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6"
         >
           <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {FILTERS.map((f, i) => (
-              <button
-                key={f}
-                type="button"
-                aria-pressed={i === 0}
+            {FILTERS.map((f) => (
+              <Link
+                key={f.label}
+                href={chipHref({ spec: f.value, district, q })}
+                aria-current={(spec ?? undefined) === f.value ? 'page' : undefined}
                 className={cn(
-                  'inline-flex h-11 shrink-0 cursor-pointer items-center gap-1 rounded-full border px-4 text-sm font-medium transition-colors duration-150',
-                  i === 0
+                  'inline-flex h-11 shrink-0 items-center gap-1 rounded-full border px-4 text-sm font-medium transition-colors duration-150',
+                  (spec ?? undefined) === f.value
                     ? 'border-foreground bg-foreground text-background'
                     : 'border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground',
                 )}
               >
-                {f}
-              </button>
+                {f.label}
+              </Link>
             ))}
-            <span className="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden />
-            <button
-              type="button"
-              className="inline-flex h-11 shrink-0 cursor-pointer items-center gap-1 rounded-full border border-border bg-surface px-4 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:border-border-strong hover:text-foreground"
-            >
-              Район
-              <ChevronDown className="size-4 opacity-60" aria-hidden />
-            </button>
           </div>
+          {showDistricts ? (
+            <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <span className="shrink-0 text-[13px] text-muted-foreground">Район:</span>
+              {districts.slice(0, 6).map((d) => {
+                const active = district === d.slug
+                return (
+                  <Link
+                    key={d.slug}
+                    href={chipHref({ spec, district: active ? undefined : d.slug, q })}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'inline-flex h-9 shrink-0 items-center rounded-full border px-3.5 text-[13px] font-medium transition-colors duration-150 max-sm:h-11',
+                      active
+                        ? 'border-foreground bg-foreground text-background'
+                        : 'border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground',
+                    )}
+                  >
+                    {d.name}
+                  </Link>
+                )
+              })}
+            </div>
+          ) : null}
         </section>
 
-        <section aria-label="Список специалистов" className="mt-6 grid gap-5 lg:grid-cols-2">
-          {ordered.map((s) => (
-            <SpecialistCard key={s.slug} specialist={s} />
-          ))}
-        </section>
+        {items.length === 0 ? (
+          <div className="mt-10">
+            <EmptyState
+              icon={SearchX}
+              title="Никого не нашлось"
+              description="Попробуйте убрать фильтры или изменить запрос — специалистов в каталоге больше, чем кажется."
+            />
+          </div>
+        ) : (
+          <section aria-label="Список специалистов" className="mt-6 grid gap-5 lg:grid-cols-2">
+            {items.map(({ specialist, thumbs }) => (
+              <SpecialistCard key={specialist.slug} specialist={specialist} thumbs={thumbs} />
+            ))}
+          </section>
+        )}
       </main>
       <SiteFooter />
     </>

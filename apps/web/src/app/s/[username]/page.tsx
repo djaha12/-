@@ -10,17 +10,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CaseCard } from '@/components/case-card'
 import { ReviewCard } from '@/components/review-card'
 import { RatingStars } from '@/components/rating-stars'
-import { SaveButton } from '@/components/save-button'
 import { VerifiedBadge } from '@/components/verified-badge'
-import { casesOf, dealReviews, findSpecialist, img, reviews } from '@/mock/data'
+import { img } from '@/mock/data'
+import { getSessionUser } from '@/server/auth'
+import { getSpecialist, markSaved } from '@/server/data'
 import { formatSom, plural } from '@/lib/utils'
 
-const SUBSCALE_SUMMARY = [
-  { label: 'Качество', value: 4.9 },
-  { label: 'Сроки', value: 4.7 },
-  { label: 'Общение', value: 4.9 },
-  { label: 'Бюджет', value: 4.8 },
-]
+export const dynamic = 'force-dynamic'
 
 export default async function ProfilePage({
   params,
@@ -31,12 +27,26 @@ export default async function ProfilePage({
 }) {
   const { username } = await params
   const { tab } = await searchParams
-  const s = findSpecialist(username)
-  if (!s) notFound()
+  const data = await getSpecialist(username)
+  if (!data) notFound()
+  const viewer = await getSessionUser()
+  const s = data.specialist
+  const ownCases = await markSaved(data.cases, viewer?.id)
+  const ownReviews = data.reviews
+
   const isRealtor = Boolean(s.dealStats)
   const cover = img(isRealtor ? 'cover2' : 'cover1')
-  const ownCases = casesOf(s.slug)
-  const ownReviews = isRealtor ? dealReviews : reviews
+
+  const avgOf = (pick: (r: (typeof ownReviews)[number]) => number) =>
+    ownReviews.length
+      ? ownReviews.reduce((sum, r) => sum + pick(r), 0) / ownReviews.length
+      : s.rating
+  const subscales = [
+    { label: 'Качество', value: avgOf((r) => r.quality) },
+    { label: 'Сроки', value: avgOf((r) => r.timing) },
+    { label: 'Общение', value: avgOf((r) => r.communication) },
+    { label: 'Бюджет', value: avgOf((r) => r.budget) },
+  ]
 
   return (
     <>
@@ -91,7 +101,6 @@ export default async function ProfilePage({
               <Button size="lg" className="max-sm:hidden">
                 Отправить заявку
               </Button>
-              <SaveButton className="rounded-full border border-border-strong bg-surface hover:bg-surface-muted" />
               <Button variant="secondary" size="icon" aria-label="Поделиться профилем">
                 <Share2 />
               </Button>
@@ -212,7 +221,7 @@ export default async function ProfilePage({
 
           <TabsContent value="cases">
             {isRealtor && s.dealStats ? (
-              // 6 кейсов vs «47 сделок» в статистике — снимаем противоречие явно
+              // кейсы vs «сделок всего» в статистике — снимаем противоречие явно
               <p className="mb-4 text-[13px] text-muted-foreground">
                 {ownCases.length} {plural(ownCases.length, 'сделка', 'сделки', 'сделок')} оформлены
                 как кейсы — из {s.dealStats.closed} завершённых
@@ -240,7 +249,7 @@ export default async function ProfilePage({
                   {isRealtor ? 'завершённым сделкам' : 'завершённым заказам'}
                 </p>
                 <div className="mt-4 space-y-2.5">
-                  {SUBSCALE_SUMMARY.map((row) => (
+                  {subscales.map((row) => (
                     <div key={row.label} className="flex items-center gap-2.5">
                       <span className="w-28 shrink-0 text-[13px] text-muted-foreground">
                         {row.label}
@@ -268,30 +277,35 @@ export default async function ProfilePage({
                     }
                   />
                 ))}
-                <div className="flex justify-center pt-2">
-                  <Button variant="secondary">
-                    Показать ещё {s.reviewsCount - ownReviews.length}{' '}
-                    {plural(s.reviewsCount - ownReviews.length, 'отзыв', 'отзыва', 'отзывов')}
-                  </Button>
-                </div>
+                {s.reviewsCount > ownReviews.length ? (
+                  <div className="flex justify-center pt-2">
+                    <Button variant="secondary">
+                      Показать ещё {s.reviewsCount - ownReviews.length}{' '}
+                      {plural(s.reviewsCount - ownReviews.length, 'отзыв', 'отзыва', 'отзывов')}
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             </div>
           </TabsContent>
 
           <TabsContent value="about">
             <div className="max-w-2xl space-y-6">
-              <p className="text-[15px] leading-relaxed">{s.bio}</p>
+              {s.bio ? <p className="text-[15px] leading-relaxed">{s.bio}</p> : null}
               <div>
                 <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
                   Подтверждено
                 </h2>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Badge variant="accent" size="md">
-                    Личность подтверждена
-                  </Badge>
-                  <Badge variant="accent" size="md">
-                    Патент ИП
-                  </Badge>
+                  {s.verified ? (
+                    <Badge variant="accent" size="md">
+                      Личность подтверждена
+                    </Badge>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Специалист ещё не проходил верификацию.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

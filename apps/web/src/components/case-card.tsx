@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { BadgeCheck, Bookmark } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { SaveButton } from '@/components/save-button'
-import { img, specialistBySlug, type CaseItem, type DealInfo } from '@/mock/data'
+import type { CaseItem, DealInfo } from '@/mock/data'
 import { cn, formatBudgetRange, formatDealPrice } from '@/lib/utils'
 
 export const DEAL_TYPE_LABEL: Record<DealInfo['type'], string> = {
@@ -29,8 +29,7 @@ interface CaseCardProps {
 }
 
 export function CaseCard({ item, hideAuthor = false, frame = 'natural' }: CaseCardProps) {
-  const image = img(item.imageId)
-  const author = specialistBySlug(item.specialistSlug)
+  const image = item.image
 
   return (
     <article className={cn('group', frame === 'natural' && 'mb-5 break-inside-avoid')}>
@@ -69,7 +68,7 @@ export function CaseCard({ item, hideAuthor = false, frame = 'natural' }: CaseCa
           />
         </Link>
         <span className="absolute top-3 right-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100 max-md:opacity-100">
-          <SaveButton floating />
+          <SaveButton floating caseSlug={item.slug} defaultSaved={item.savedByMe} />
         </span>
         {item.deal ? (
           // итог сделки виден всегда — это и есть контент карточки риелтора;
@@ -139,12 +138,12 @@ export function CaseCard({ item, hideAuthor = false, frame = 'natural' }: CaseCa
             <span className="truncate text-[13px] text-muted-foreground">{item.location}</span>
           ) : (
             <Link
-              href={`/s/${author.slug}`}
+              href={`/s/${item.specialistSlug}`}
               className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground sm:gap-2"
             >
               {/* на 390 в 2 колонки аватар съедает имя — носитель доверия важнее */}
-              <Avatar name={author.name} className="size-6 text-[10px] max-sm:hidden" />
-              <span className="truncate">{author.name}</span>
+              <Avatar name={item.authorName} className="size-6 text-[10px] max-sm:hidden" />
+              <span className="truncate">{item.authorName}</span>
             </Link>
           )}
           <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">

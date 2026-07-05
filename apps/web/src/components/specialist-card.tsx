@@ -4,7 +4,7 @@ import { ChevronRight, MapPin } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { RatingStars } from '@/components/rating-stars'
 import { VerifiedBadge } from '@/components/verified-badge'
-import { casesOf, img, type Specialist } from '@/mock/data'
+import type { MockImage, Specialist } from '@/mock/data'
 import { cn, plural } from '@/lib/utils'
 
 function Fact({ children }: { children: React.ReactNode }) {
@@ -37,9 +37,19 @@ function TrustLine({ s }: { s: Specialist }) {
   )
 }
 
-export function SpecialistCard({ specialist: s }: { specialist: Specialist }) {
-  const thumbs = casesOf(s.slug).slice(0, 3)
+export interface SpecialistThumb {
+  id: string
+  title: string
+  image: MockImage
+}
 
+export function SpecialistCard({
+  specialist: s,
+  thumbs,
+}: {
+  specialist: Specialist
+  thumbs: SpecialistThumb[]
+}) {
   return (
     <Link
       href={`/s/${s.slug}`}
@@ -60,7 +70,7 @@ export function SpecialistCard({ specialist: s }: { specialist: Specialist }) {
             <MapPin className="size-3.5 shrink-0" aria-hidden />
             <span className="truncate">
               {s.city}
-              {s.dealStats ? ` · ${s.dealStats.districts.join(', ')}` : ''}
+              {s.dealStats?.districts.length ? ` · ${s.dealStats.districts.join(', ')}` : ''}
             </span>
           </p>
         </div>
@@ -80,28 +90,25 @@ export function SpecialistCard({ specialist: s }: { specialist: Specialist }) {
             thumbs.length >= 3 && 'grid-cols-3',
           )}
         >
-          {thumbs.map((c) => {
-            const image = img(c.imageId)
-            return (
-              <span key={c.id} className="relative block h-24 overflow-hidden rounded-lg bg-surface-muted sm:h-28">
-                <Image
-                  src={image.src}
-                  alt={c.title}
-                  fill
-                  placeholder="blur"
-                  blurDataURL={image.blurDataURL}
-                  sizes={
-                    thumbs.length === 1
-                      ? '(max-width: 1023px) 94vw, 520px'
-                      : thumbs.length === 2
-                        ? '(max-width: 640px) 45vw, 250px'
-                        : '(max-width: 640px) 30vw, 170px'
-                  }
-                  className="object-cover transition-transform duration-300 ease-(--ease-soft) group-hover:scale-[1.03]"
-                />
-              </span>
-            )
-          })}
+          {thumbs.map((c) => (
+            <span key={c.id} className="relative block h-24 overflow-hidden rounded-lg bg-surface-muted sm:h-28">
+              <Image
+                src={c.image.src}
+                alt={c.title}
+                fill
+                placeholder="blur"
+                blurDataURL={c.image.blurDataURL}
+                sizes={
+                  thumbs.length === 1
+                    ? '(max-width: 1023px) 94vw, 520px'
+                    : thumbs.length === 2
+                      ? '(max-width: 640px) 45vw, 250px'
+                      : '(max-width: 640px) 30vw, 170px'
+                }
+                className="object-cover transition-transform duration-300 ease-(--ease-soft) group-hover:scale-[1.03]"
+              />
+            </span>
+          ))}
         </div>
       ) : (
         <div className="mt-4 flex h-24 items-center justify-center rounded-lg border border-dashed border-border-strong text-[13px] text-faint-foreground sm:h-28">

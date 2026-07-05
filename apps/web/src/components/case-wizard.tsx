@@ -3,11 +3,14 @@
 import * as React from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowLeft, ArrowRight, BadgeCheck, Check, ImagePlus, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, ArrowRight, BadgeCheck, Check, ImagePlus, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CaseCard } from '@/components/case-card'
+import { derivePriceRange } from '@atelier/core'
 import { img, type CaseItem, type DealType } from '@/mock/data'
+import { trpc } from '@/lib/trpc'
 import { cn, formatDealPrice } from '@/lib/utils'
 
 /* ————— простые строительные блоки формы (без библиотек — минимум полей, умные дефолты) ————— */
@@ -82,11 +85,30 @@ function Segmented<T extends string>({
 /* ————— мастер ————— */
 
 const STEPS = ['Фото', 'Детали', 'Публикация'] as const
-const DEAL_PHOTO_POOL = ['d01', 'd02', 'g3', 'd05', 'g2', 'd06']
-const PROJECT_PHOTO_POOL = ['g1', 'g2', 'g3', 'g4', 'c20', 'c14']
+const DRAFT_KEY = 'atelier-case-draft'
+const DEMO_POOL = ['d01', 'd02', 'g3', 'd05', 'g2', 'd06']
 const DISTRICTS = ['Центр', 'Джал', 'Магистраль', 'Кок-Жар', 'Асанбай', 'Тунгуч']
 const PROPERTY_TYPES = ['Вторичка', 'Новостройка', 'Дом', 'Коммерция']
 const STYLES = ['Минимализм', 'Джапанди', 'Скандинавский', 'Лофт', 'Неоклассика']
+
+interface WizPhoto {
+  storageKey: string
+  src: string
+  blurDataURL: string
+  width: number
+  height: number
+}
+
+const demoPhoto = (id: string): WizPhoto => {
+  const image = img(id)
+  return {
+    storageKey: `mock/${id}.jpg`,
+    src: image.src,
+    blurDataURL: image.blurDataURL,
+    width: image.width,
+    height: image.height,
+  }
+}
 
 interface CaseWizardProps {
   initialStep?: number
@@ -94,9 +116,15 @@ interface CaseWizardProps {
 }
 
 export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizardProps) {
+  const router = useRouter()
+  const fileInput = React.useRef<HTMLInputElement>(null)
   const [step, setStep] = React.useState(Math.min(3, Math.max(1, initialStep)))
   const [kind, setKind] = React.useState<'deal' | 'project'>(initialKind)
-  const [photos, setPhotos] = React.useState<string[]>(initialStep > 1 ? DEAL_PHOTO_POOL.slice(0, 3) : [])
+  const [photos, setPhotos] = React.useState<WizPhoto[]>(
+    initialStep > 1 ? DEMO_POOL.slice(0, 3).map(demoPhoto) : [],
+  )
+  const [uploading, setUploading] = React.useState(false)
+  const [uploadError, setUploadError] = React.useState<string | null>(null)
   const [title, setTitle] = React.useState(initialStep > 1 ? 'Двушка на Токтогула, 58 м²' : '')
   const [dealType, setDealType] = React.useState<DealType>('sale')
   const [propertyType, setPropertyType] = React.useState('Вторичка')
@@ -107,54 +135,141 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
   const [style, setStyle] = React.useState('Минимализм')
   const [areaM2, setAreaM2] = React.useState('')
   const [consent, setConsent] = React.useState(false)
-  const [published, setPublished] = React.useState(false)
   const [touched, setTouched] = React.useState(initialStep > 1)
 
-  const pool = kind === 'deal' ? DEAL_PHOTO_POOL : PROJECT_PHOTO_POOL
+  const publish = trpc.cases.create.useMutation({
+    onSuccess: () => {
+      try {
+        localStorage.removeItem(DRAFT_KEY)
+      } catch {}
+    },
+    onError: (e) => {
+      if (e.data?.code === 'UNAUTHORIZED') router.push('/login')
+    },
+  })
+
+  // «Черновик сохранён» — честно: состояние живёт в localStorage (фото уже на сервере)
+  React.useEffect(() => {
+    if (initialStep > 1) return
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY)
+      if (!raw) return
+      const d = JSON.parse(raw) as Partial<{
+        kind: 'deal' | 'project'
+        photos: WizPhoto[]
+        title: string
+        dealType: DealType
+        propertyType: string
+        district: string
+        price: string
+        priceVis: 'exact' | 'range' | 'hidden'
+        days: string
+        style: string
+        areaM2: string
+      }>
+      if (d.kind) setKind(d.kind)
+      if (d.photos?.length) setPhotos(d.photos)
+      if (d.title) setTitle(d.title)
+      if (d.dealType) setDealType(d.dealType)
+      if (d.propertyType) setPropertyType(d.propertyType)
+      if (d.district) setDistrict(d.district)
+      if (d.price) setPrice(d.price)
+      if (d.priceVis) setPriceVis(d.priceVis)
+      if (d.days) setDays(d.days)
+      if (d.style) setStyle(d.style)
+      if (d.areaM2) setAreaM2(d.areaM2)
+      if (d.title || d.photos?.length) setTouched(true)
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  React.useEffect(() => {
+    if (!touched) return
+    try {
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ kind, photos, title, dealType, propertyType, district, price, priceVis, days, style, areaM2 }),
+      )
+    } catch {}
+  }, [touched, kind, photos, title, dealType, propertyType, district, price, priceVis, days, style, areaM2])
+
   const canNext = step === 1 ? photos.length > 0 : step === 2 ? title.trim().length > 2 : true
-  const canPublish = kind === 'deal' ? consent : true
+  const canPublish = (kind === 'deal' ? consent : true) && !publish.isPending
+
+  async function uploadFiles(files: FileList) {
+    setUploading(true)
+    setUploadError(null)
+    try {
+      for (const file of Array.from(files).slice(0, 20 - photos.length)) {
+        const form = new FormData()
+        form.append('file', file)
+        const res = await fetch('/api/upload', { method: 'POST', body: form })
+        const json = (await res.json()) as WizPhoto & { error?: string }
+        if (!res.ok) {
+          if (res.status === 401) {
+            router.push('/login')
+            return
+          }
+          throw new Error(json.error ?? 'Не получилось загрузить фото.')
+        }
+        setPhotos((p) => [...p, json])
+        setTouched(true)
+      }
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : 'Не получилось загрузить фото.')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   // предпросмотр уважает видимость цены: «Вилка» → диапазон, «Скрыть» → без цены
   const numPrice = price && dealType !== 'buyAssist' ? Number(price) : undefined
-  const roundTo10k = (v: number) => Math.round(v / 10000) * 10000
+  const previewRange = numPrice && priceVis === 'range' ? derivePriceRange(numPrice) : null
+  const previewImage = photos[0] ?? demoPhoto(DEMO_POOL[0]!)
   const preview: CaseItem = {
     id: 'preview',
-    slug: 'dvushka-toktogula',
+    slug: '',
     title: title || 'Название кейса',
-    specialistSlug: 'nurlan-abdykadyrov',
+    specialistSlug: '',
+    authorName: 'Ваш профиль',
     location: `Бишкек, ${district}`,
     styles: kind === 'project' ? [style] : [],
     areaM2: areaM2 ? Number(areaM2) : undefined,
     budgetFrom: 0,
     budgetTo: 0,
     saves: 0,
-    imageId: photos[0] ?? pool[0]!,
+    image: {
+      src: previewImage.src,
+      width: previewImage.width,
+      height: previewImage.height,
+      blurDataURL: previewImage.blurDataURL,
+    },
     deal:
       kind === 'deal'
         ? {
             type: dealType,
             propertyType,
             price: priceVis === 'exact' ? numPrice : undefined,
-            priceFrom:
-              priceVis === 'range' && numPrice ? roundTo10k(numPrice * 0.95) : undefined,
-            priceTo: priceVis === 'range' && numPrice ? roundTo10k(numPrice * 1.05) : undefined,
+            priceFrom: previewRange?.min,
+            priceTo: previewRange?.max,
             daysOnMarket: days && dealType !== 'buyAssist' ? Number(days) : undefined,
             confirmed: false,
           }
         : undefined,
   }
 
-  if (published) {
+  if (publish.isSuccess) {
     return (
       <div className="animate-fade-up rounded-2xl border border-border bg-surface p-8 text-center">
         <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-success-soft text-success">
           <Check className="size-7" aria-hidden />
         </span>
         <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">
-          Кейс отправлен на проверку
+          Кейс опубликован
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-muted-foreground">
-          Обычно это занимает до 2 часов. Как только кейс опубликуется — напишем в Telegram.
+          Он уже в ленте и в вашем профиле. Премодерация новых авторов появится вместе с
+          модерацией — пока публикация мгновенная.
         </p>
         <p className="mx-auto mt-3 max-w-sm rounded-lg bg-surface-muted px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">
           Совет: сделка, проведённая через Ателье, получает бейдж
@@ -166,11 +281,11 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
         </p>
         <div className="mt-6 flex justify-center gap-3">
           <Button asChild variant="secondary">
-            <Link href="/s/nurlan-abdykadyrov">В профиль</Link>
+            <Link href={`/case/${publish.data.slug}`}>Открыть кейс</Link>
           </Button>
           <Button
             onClick={() => {
-              setPublished(false)
+              publish.reset()
               setStep(1)
               setPhotos([])
               setTitle('')
@@ -223,58 +338,89 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
           <div className="animate-fade-up">
             <h2 className="font-display text-xl font-semibold tracking-tight">Фото объекта</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Добавьте 3–20 фото. Они загружаются в фоне — продолжайте заполнять.
+              Добавьте 3–20 фото. Геометки срезаются автоматически — адрес не утечёт.
             </p>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files?.length) void uploadFiles(e.target.files)
+                e.target.value = ''
+              }}
+            />
             <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
-              {photos.map((id, i) => {
-                const image = img(id)
-                return (
-                  <span key={id} className="group relative block aspect-square overflow-hidden rounded-lg bg-surface-muted">
-                    <Image
-                      src={image.src}
-                      alt={`Фото ${i + 1}`}
-                      fill
-                      sizes="150px"
-                      className="object-cover"
-                    />
-                    {i === 0 ? (
-                      <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
-                        Обложка
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      aria-label={`Убрать фото ${i + 1}`}
-                      onClick={() => {
-                        setPhotos((p) => p.filter((x) => x !== id))
-                        setTouched(true)
-                      }}
-                      className="absolute top-1.5 right-1.5 flex size-7 cursor-pointer items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/75"
-                    >
-                      <X className="size-4" aria-hidden />
-                    </button>
-                  </span>
-                )
-              })}
-              {photos.length < pool.length ? (
+              {photos.map((photo, i) => (
+                <span
+                  key={photo.storageKey}
+                  className="group relative block aspect-square overflow-hidden rounded-lg bg-surface-muted"
+                >
+                  <Image
+                    src={photo.src}
+                    alt={`Фото ${i + 1}`}
+                    fill
+                    sizes="150px"
+                    className="object-cover"
+                  />
+                  {i === 0 ? (
+                    <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
+                      Обложка
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    aria-label={`Убрать фото ${i + 1}`}
+                    onClick={() => {
+                      setPhotos((p) => p.filter((x) => x.storageKey !== photo.storageKey))
+                      setTouched(true)
+                    }}
+                    className="absolute top-1.5 right-1.5 flex size-7 cursor-pointer items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/75"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </button>
+                </span>
+              ))}
+              {photos.length < 20 ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    const next = pool.find((id) => !photos.includes(id))
-                    if (next) setPhotos((p) => [...p, next])
-                    setTouched(true)
-                  }}
-                  className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+                  disabled={uploading}
+                  onClick={() => fileInput.current?.click()}
+                  className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border-strong text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground disabled:opacity-60"
                 >
-                  <ImagePlus className="size-6" aria-hidden />
-                  <span className="text-[13px] font-medium">Добавить</span>
+                  {uploading ? (
+                    <Loader2 className="size-6 animate-spin" aria-hidden />
+                  ) : (
+                    <ImagePlus className="size-6" aria-hidden />
+                  )}
+                  <span className="text-[13px] font-medium">
+                    {uploading ? 'Загружаем…' : 'Добавить'}
+                  </span>
                 </button>
               ) : null}
             </div>
-            {photos.length === 0 ? (
+            {uploadError ? <p className="mt-3 text-[13px] text-danger">{uploadError}</p> : null}
+            {photos.length === 0 && !uploadError ? (
               <p className="mt-3 text-[13px] text-muted-foreground">
                 Хотя бы одно фото — и можно идти дальше. Первое станет обложкой.
               </p>
+            ) : null}
+            {process.env.NODE_ENV === 'development' ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-3"
+                onClick={() => {
+                  const next = DEMO_POOL.map(demoPhoto).find(
+                    (d) => !photos.some((p) => p.storageKey === d.storageKey),
+                  )
+                  if (next) setPhotos((p) => [...p, next])
+                  setTouched(true)
+                }}
+              >
+                + демо-фото (dev)
+              </Button>
             ) : null}
           </div>
         ) : null}
@@ -468,6 +614,9 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                 </span>
               </label>
             ) : null}
+            {publish.isError && publish.error.data?.code !== 'UNAUTHORIZED' ? (
+              <p className="mt-3 text-[13px] text-danger">{publish.error.message}</p>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -507,7 +656,23 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
               <Button
                 size="lg"
                 disabled={!canPublish}
-                onClick={() => setPublished(true)}
+                loading={publish.isPending}
+                onClick={() =>
+                  publish.mutate({
+                    kind,
+                    title: title.trim(),
+                    images: photos,
+                    districtName: district,
+                    consent: kind === 'deal' ? consent : true,
+                    dealType: kind === 'deal' ? dealType : undefined,
+                    propertyType: kind === 'deal' ? propertyType : undefined,
+                    price: numPrice,
+                    priceVisibility: priceVis,
+                    daysOnMarket: days ? Number(days) : undefined,
+                    styleName: kind === 'project' ? style : undefined,
+                    areaM2: areaM2 ? Number(areaM2) : undefined,
+                  })
+                }
                 className="w-full"
               >
                 Опубликовать

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { canPublishCase, canRespondToBrief } from './plans'
+import { derivePriceRange } from './pricing'
 import { canTransitionOrder, ORDER_TRANSITIONS, TERMINAL_ORDER_STATUSES, type OrderStatus } from './orders'
 import { canSubmitReview, isValidScores, overallScore } from './reviews'
 
@@ -68,6 +69,26 @@ describe('state machine заказа', () => {
       expect(canTransitionOrder('discussion', 'completed', a)).toBe(false)
       expect(canTransitionOrder('agreed', 'completed', a)).toBe(false)
     }
+  })
+})
+
+describe('вилка цены — точная цена не раскрывается никогда', () => {
+  it('обычная цена: floor/ceil в разные стороны', () => {
+    const r = derivePriceRange(4_650_000)
+    expect(r.min).toBeLessThan(4_650_000)
+    expect(r.max).toBeGreaterThan(4_650_000)
+  })
+  it('малые суммы (аренда) не вырождаются в точку', () => {
+    const r = derivePriceRange(30_000)
+    expect(r.min).toBeLessThan(r.max)
+    expect(r.min).not.toBe(30_000)
+    expect(r.max).not.toBe(30_000)
+  })
+  it('круглые цены, равные шагу, тоже расширяются', () => {
+    const r = derivePriceRange(10_000)
+    expect(r.min).toBeLessThan(10_000)
+    expect(r.max).toBeGreaterThan(10_000)
+    expect(r.min).toBeGreaterThanOrEqual(0)
   })
 })
 

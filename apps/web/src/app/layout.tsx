@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { ThemeProvider } from 'next-themes'
+import { TrpcProvider } from '@/lib/trpc'
 import '@fontsource-variable/manrope'
 import '@fontsource-variable/lora'
 import './globals.css'
@@ -25,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ru" suppressHydrationWarning>
       <body>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-          {children}
+          <TrpcProvider>{children}</TrpcProvider>
         </ThemeProvider>
       </body>
     </html>

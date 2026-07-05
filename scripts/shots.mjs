@@ -53,11 +53,18 @@ async function waitForServer(url, tries = 60) {
 
 let server
 if (!process.env.SHOTS_BASE_URL) {
+  // страницы читают из БД — поднимаем dev-Postgres и сеем при первом запуске
+  const { startDb } = await import('./dev-db.mjs')
+  process.env.DATABASE_URL = startDb()
+  const { execSync } = await import('node:child_process')
+  execSync('pnpm --filter @atelier/db seed', { cwd: root, stdio: 'inherit' })
+
   console.log('Запускаю next start…')
   server = spawn('pnpm', ['--filter', '@atelier/web', 'start'], {
     cwd: root,
     stdio: 'ignore',
     detached: true,
+    env: process.env,
   })
 }
 
@@ -73,8 +80,9 @@ try {
       const page = await ctx.newPage()
       await page.setViewportSize({ width: vp.width, height: vp.height })
       for (const route of ROUTES) {
-        await page.goto(`${BASE}${route.path}`, { waitUntil: 'networkidle' })
-        await page.waitForTimeout(400) // дождаться шрифтов/анимаций
+        // networkidle хрупок на динамических страницах (префетчи) — load + пауза стабильнее
+        await page.goto(`${BASE}${route.path}`, { waitUntil: 'load', timeout: 60000 })
+        await page.waitForTimeout(900) // шрифты, изображения, анимации
 
         // фиксированные бары в fullPage рисуются посреди страницы — прячем их,
         // а их реальное положение фиксируем отдельным кадром первого экрана

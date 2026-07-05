@@ -10,6 +10,9 @@ dist/
 # generated mock assets (pnpm gen:mock)
 apps/web/public/mock/
 
+# dev-данные песочницы: Postgres и загруженные изображения
+.data/
+
 # screenshot evidence is attached to reviews, not versioned
 screenshots/
 

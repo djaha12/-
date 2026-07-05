@@ -1,19 +1,36 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import { Bookmark } from 'lucide-react'
+import { trpc } from '@/lib/trpc'
 import { cn } from '@/lib/utils'
 
 interface SaveButtonProps {
+  /** slug кейса; без него кнопка декоративная (превью мастера) */
+  caseSlug?: string
   /** плавающая по фото или строчная в тулбаре */
   floating?: boolean
   defaultSaved?: boolean
   className?: string
 }
 
-/** Сохранение в коллекцию — «маленький момент радости» (анимация save-pop) */
-export function SaveButton({ floating = false, defaultSaved = false, className }: SaveButtonProps) {
+/** Сохранение в коллекцию — «маленький момент радости» (анимация save-pop).
+ *  Гостя ведём на вход в момент ценности. */
+export function SaveButton({
+  caseSlug,
+  floating = false,
+  defaultSaved = false,
+  className,
+}: SaveButtonProps) {
+  const router = useRouter()
   const [saved, setSaved] = React.useState(defaultSaved)
+  const toggle = trpc.saves.toggle.useMutation({
+    onError: (e) => {
+      setSaved((s) => !s) // откат оптимизма
+      if (e.data?.code === 'UNAUTHORIZED') router.push('/login')
+    },
+  })
 
   return (
     <button
@@ -23,6 +40,7 @@ export function SaveButton({ floating = false, defaultSaved = false, className }
       onClick={(e) => {
         e.preventDefault()
         setSaved((s) => !s)
+        if (caseSlug) toggle.mutate({ caseSlug })
       }}
       className={cn(
         'inline-flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors duration-150 ease-(--ease-soft)',

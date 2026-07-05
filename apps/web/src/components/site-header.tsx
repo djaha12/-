@@ -1,9 +1,14 @@
 import Link from 'next/link'
-import { MapPin, Menu, Search } from 'lucide-react'
+import { Bookmark, MapPin, Menu, Search } from 'lucide-react'
+import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { LogoutButton } from '@/components/logout-button'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { getSessionUser } from '@/server/auth'
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const user = await getSessionUser()
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-[1360px] items-center gap-3 px-4 sm:gap-5 sm:px-6">
@@ -32,21 +37,24 @@ export function SiteHeader() {
           </Link>
         </nav>
 
-        <div className="relative ml-auto hidden w-full max-w-sm md:block">
+        <form action="/specialists" className="relative ml-auto hidden w-full max-w-sm md:block">
           <Search
             className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-faint-foreground"
             aria-hidden
           />
           <input
             type="search"
-            placeholder="Стиль, специалист или район…"
+            name="q"
+            placeholder="Специалист, район или стиль…"
             className="h-10 w-full rounded-full border border-border bg-surface pr-4 pl-10 text-sm placeholder:text-faint-foreground transition-colors hover:border-border-strong focus:border-border-strong focus:outline-none"
           />
-        </div>
+        </form>
 
         <div className="flex shrink-0 items-center gap-1 md:ml-0 ml-auto">
-          <Button variant="ghost" size="icon" className="md:hidden" aria-label="Поиск">
-            <Search />
+          <Button asChild variant="ghost" size="icon" className="md:hidden" aria-label="Поиск">
+            <Link href="/specialists">
+              <Search />
+            </Link>
           </Button>
           <Button
             variant="ghost"
@@ -57,13 +65,41 @@ export function SiteHeader() {
             <span className="max-[400px]:sr-only">Бишкек</span>
           </Button>
           <ThemeToggle />
-          <Button asChild variant="ghost" size="sm" className="max-md:h-11">
-            <Link href="/login">Войти</Link>
-          </Button>
-          {/* один терракотовый primary на экран — у хедера только soft */}
-          <Button asChild variant="soft" size="sm" className="hidden md:inline-flex">
-            <Link href="/new">Я специалист</Link>
-          </Button>
+          {user ? (
+            <>
+              <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                aria-label="Сохранённое"
+                className="max-md:hidden"
+              >
+                <Link href="/saved">
+                  <Bookmark />
+                </Link>
+              </Button>
+              <Link
+                href={user.specialistSlug ? `/s/${user.specialistSlug}` : '/saved'}
+                className="flex items-center gap-2 rounded-full py-1 pr-3 pl-1 transition-colors hover:bg-surface-muted"
+              >
+                <Avatar name={user.displayName ?? user.phone ?? 'Я'} className="size-9 text-xs" />
+                <span className="max-w-28 truncate text-sm font-medium max-sm:hidden">
+                  {user.displayName ?? 'Профиль'}
+                </span>
+              </Link>
+              <LogoutButton />
+            </>
+          ) : (
+            <>
+              <Button asChild variant="ghost" size="sm" className="max-md:h-11">
+                <Link href="/login">Войти</Link>
+              </Button>
+              {/* один терракотовый primary на экран — у хедера только soft */}
+              <Button asChild variant="soft" size="sm" className="hidden md:inline-flex">
+                <Link href="/new">Я специалист</Link>
+              </Button>
+            </>
+          )}
           {/* мобильная навигация: Проекты/Специалисты/Брифы + «Я специалист» */}
           <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Меню">
             <Menu />

@@ -64,15 +64,23 @@ export interface CaseItem {
   slug: string
   title: string
   specialistSlug: string
+  authorName: string
   location: string
   styles: string[]
   areaM2?: number
   budgetFrom: number // сом, весь проект
   budgetTo: number
   saves: number
-  imageId: string
+  image: MockImage
   /** присутствует только у кейсов-сделок риелторов */
   deal?: DealInfo
+  /** сохранён текущим пользователем (заполняет слой данных) */
+  savedByMe?: boolean
+}
+
+/** внутренняя форма мок-массива до резолва изображений/имён */
+interface RawCaseItem extends Omit<CaseItem, 'image' | 'authorName'> {
+  imageId: string
 }
 
 export interface Review {
@@ -139,7 +147,7 @@ export const specialists: Specialist[] = [
   },
 ]
 
-export const cases: CaseItem[] = [
+const rawCases: RawCaseItem[] = [
   { id: 'c01', slug: 'loft-dzhal-72', title: 'Лофт для молодой пары в Джале', specialistSlug: 'aizhan-saparova', location: 'Бишкек, Джал', styles: ['Лофт', 'Тёплый минимализм'], areaM2: 72, budgetFrom: 950000, budgetTo: 1200000, saves: 214, imageId: 'c01' },
   { id: 'c02', slug: 'minimalizm-magistral', title: 'Тёплый минимализм на Магистрали', specialistSlug: 'aigerim-bekova', location: 'Бишкек, Магистраль', styles: ['Минимализм'], areaM2: 96, budgetFrom: 1400000, budgetTo: 1800000, saves: 187, imageId: 'c02' },
   { id: 'c03', slug: 'penthouse-center', title: 'Пентхаус с видом на горы', specialistSlug: 'timur-sadykov', location: 'Бишкек, центр', styles: ['Контемпорари'], areaM2: 148, budgetFrom: 3200000, budgetTo: 4000000, saves: 342, imageId: 'c03' },
@@ -174,22 +182,12 @@ export const cases: CaseItem[] = [
   { id: 'd06', slug: 'kvartira-magistral-ipoteka', title: 'Квартира на Магистрали под ипотеку', specialistSlug: 'nurlan-abdykadyrov', location: 'Бишкек, Магистраль', styles: [], areaM2: 64, budgetFrom: 0, budgetTo: 0, saves: 33, imageId: 'd06', deal: { type: 'sale', propertyType: 'Вторичка', price: 5100000, daysOnMarket: 26, confirmed: false } },
 ]
 
-/** порядок ленты: риелторские сделки видны с первого экрана (приоритетная вертикаль) */
-export const feedCases: CaseItem[] = [
-  cases[0]!, // лофт
-  cases.find((c) => c.id === 'd01')!,
-  cases[1]!,
-  cases[2]!,
-  cases.find((c) => c.id === 'd04')!,
-  cases[3]!,
-  cases[4]!,
-  cases.find((c) => c.id === 'd02')!,
-  cases[5]!,
-  cases[6]!,
-  cases[7]!,
-  cases.find((c) => c.id === 'd03')!,
-  ...cases.slice(8, 24),
-]
+/** мок-кейсы с резолвнутыми изображениями и именами — для мастера/превью */
+export const cases: CaseItem[] = rawCases.map(({ imageId, ...c }) => ({
+  ...c,
+  image: img(imageId),
+  authorName: specialists.find((s) => s.slug === c.specialistSlug)?.name ?? 'Специалист',
+}))
 
 export const reviews: Review[] = [
   {

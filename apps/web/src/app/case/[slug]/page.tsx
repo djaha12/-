@@ -12,37 +12,30 @@ import { CaseCard, DEAL_TYPE_LABEL, dealOutcomeLabel } from '@/components/case-c
 import { ReviewCard } from '@/components/review-card'
 import { SaveButton } from '@/components/save-button'
 import { VerifiedBadge } from '@/components/verified-badge'
-import { cases, dealReviews, findCase, img, reviews, specialistBySlug } from '@/mock/data'
+import { getSessionUser } from '@/server/auth'
+import { getCase, markSaved } from '@/server/data'
 import { formatBudgetRange, formatDealPrice, plural } from '@/lib/utils'
+
+export const dynamic = 'force-dynamic'
 
 export default async function CasePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const item = findCase(slug)
-  if (!item) notFound()
-  const author = specialistBySlug(item.specialistSlug)
-  const deal = item.deal
+  const data = await getCase(slug)
+  if (!data) notFound()
+  const viewer = await getSessionUser()
 
-  const hero = img(deal ? 'dg-hero' : 'g1')
-  const galleryIds = deal ? ['d02', 'g3', 'd05', 'd06'] : ['g2', 'g3', 'g4', 'g5']
-  const team = deal
-    ? [
-        { slug: 'maria-kim', role: 'Хоумстейджинг' },
-        { slug: 'viktor-li', role: 'Фотосъёмка' },
-      ]
-    : [
-        { slug: 'eldar-toktogulov', role: '3D-визуализация' },
-        { slug: 'viktor-li', role: 'Фотосъёмка' },
-      ]
-  // отзыв существует только у подтверждённой сделки — иначе ломается модель доверия
-  const review = deal ? (deal.confirmed ? dealReviews[0] : undefined) : reviews[0]
-  const related = deal
-    ? cases.filter((c) => c.deal && c.id !== item.id).slice(0, 4)
-    : cases.filter((c) => !c.deal && c.id !== item.id).slice(1, 5)
+  const { item: rawItem, author, gallery, beforeAfter, review, story } = data
+  const [item] = await markSaved([rawItem], viewer?.id)
+  const related = await markSaved(data.related, viewer?.id)
+  const deal = item!.deal
 
+  const hero = gallery[1] ?? gallery[0] ?? item!.image
+  const grid = gallery.slice(2, 6)
   const price = deal?.price
     ? formatDealPrice(deal.price, { monthly: deal.type === 'rentOut' })
     : null
-  const budget = deal ? null : formatBudgetRange(item.budgetFrom, item.budgetTo)
+  const budget =
+    !deal && item!.budgetFrom > 0 ? formatBudgetRange(item!.budgetFrom, item!.budgetTo) : null
 
   // big: итог сделки (цена + скорость) крупнее служебного контекста
   const paramItems = deal
@@ -56,7 +49,16 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
                 big: true,
               },
             ]
-          : [{ dt: 'Бюджет', dd: 'Под задачу клиента', sub: 'вилка не публикуется' }]),
+          : deal.priceFrom && deal.priceTo
+            ? [
+                {
+                  dt: 'Цена сделки',
+                  dd: formatBudgetRange(deal.priceFrom, deal.priceTo).som,
+                  sub: 'публикуется вилкой',
+                  big: true,
+                },
+              ]
+            : [{ dt: 'Бюджет', dd: 'Под задачу клиента', sub: 'вилка не публикуется' }]),
         ...(deal.daysOnMarket
           ? [
               {
@@ -75,30 +77,18 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
         {
           dt: 'Тип',
           dd: `${DEAL_TYPE_LABEL[deal.type]} · ${deal.propertyType}`,
-          sub: item.areaM2 ? `${item.areaM2} м²` : '—',
+          sub: item!.areaM2 ? `${item!.areaM2} м²` : '—',
         },
-        { dt: 'Локация', dd: item.location, sub: 'точный адрес — после заявки' },
+        { dt: 'Локация', dd: item!.location, sub: 'точный адрес — после заявки' },
       ]
     : [
-        ...(item.areaM2
-          ? [{ dt: 'Площадь', dd: `${item.areaM2} м²`, sub: '2 комнаты + кухня-гостиная' }]
-          : []),
-        { dt: 'Бюджет', dd: budget!.som, sub: budget!.usd },
-        { dt: 'Срок', dd: '3,5 месяца', sub: 'от обмеров до сдачи' },
+        ...(item!.areaM2 ? [{ dt: 'Площадь', dd: `${item!.areaM2} м²`, sub: 'по обмерам' }] : []),
+        ...(budget ? [{ dt: 'Бюджет', dd: budget.som, sub: budget.usd }] : []),
         { dt: 'Роль', dd: 'Полный дизайн-проект', sub: 'с авторским надзором' },
+        { dt: 'Локация', dd: item!.location, sub: 'город и район' },
       ]
 
-  const story = deal
-    ? [
-        'Квартира четыре месяца продавалась без результата: тёмные фото, завышенная цена, ноль звонков за последние недели. Мы начали с честной переоценки по свежим сделкам в этом квадрате — и с подготовки: хоумстейджинг за один день и профессиональная съёмка.',
-        'Переупакованный объект собрал 26 обращений за первую неделю. Показы вели пакетно, торг держали от опорной цены — задаток взяли на 18-й день, итоговая цена выше первоначальных ожиданий собственницы. Все этапы — звонки, показы, торг — фиксировались в заказе на Ателье.',
-      ]
-    : [
-        'Пара переехала из съёмной квартиры и хотела «спокойный лофт»: бетон и дерево, но без холодности. Мы сохранили открытую планировку, подняли свет тремя сценариями и собрали кухню-гостиную вокруг острова — это центр дома, здесь завтракают и принимают гостей.',
-        'Бюджет держали публично в смете: локальные материалы там, где это не влияет на результат, и точечные акценты — латунь, травертин, свет Astep. Сдача — за 3,5 месяца, еженедельные чек-поинты с фото фиксировались прямо в заказе на Ателье.',
-      ]
-
-  const beforeAfter = deal
+  const beforeAfterCopy = deal
     ? {
         title: 'Подготовка к продаже',
         text: 'Слева — объект в старом объявлении, справа — после хоумстейджинга и съёмки. Подготовка сократила срок продажи и подняла цену.',
@@ -142,8 +132,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
                 ) : null}
               </>
             ) : (
-              // нейтральные чипы как в профиле; accent-soft — только интерактиву
-              item.styles.map((st) => (
+              item!.styles.map((st) => (
                 <Badge key={st} variant="neutral" size="md">
                   {st}
                 </Badge>
@@ -151,11 +140,11 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
             )}
             <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="size-4" aria-hidden />
-              {item.location}
+              {item!.location}
             </span>
           </div>
           <h1 className="mt-3 max-w-3xl font-display text-[32px] leading-[1.12] font-semibold tracking-tight text-balance sm:text-5xl">
-            {item.title}
+            {item!.title}
           </h1>
 
           <div className="mt-6 flex items-center justify-between gap-4">
@@ -174,7 +163,11 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
             </Link>
             {/* один primary на экран: на десктопе — sticky-панель, на мобиле — нижний бар */}
             <div className="flex shrink-0 items-center gap-2">
-              <SaveButton className="rounded-full border border-border-strong bg-surface hover:bg-surface-muted" />
+              <SaveButton
+                caseSlug={item!.slug}
+                defaultSaved={item!.savedByMe}
+                className="rounded-full border border-border-strong bg-surface hover:bg-surface-muted"
+              />
               <Button variant="secondary" size="icon" aria-label="Поделиться кейсом">
                 <Share2 />
               </Button>
@@ -186,7 +179,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
           <div className="relative overflow-hidden rounded-xl bg-surface-muted sm:rounded-2xl">
             <Image
               src={hero.src}
-              alt={`${item.title} — главное фото`}
+              alt={`${item!.title} — главное фото`}
               width={hero.width}
               height={hero.height}
               priority
@@ -208,37 +201,38 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
               </span>
             ) : null}
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            {galleryIds.map((id, i) => {
-              const image = img(id)
-              const last = i === galleryIds.length - 1
-              return (
-                <div
-                  key={id}
-                  className="relative aspect-[3/2] overflow-hidden rounded-xl bg-surface-muted"
-                >
-                  <Image
-                    src={image.src}
-                    alt={`${item.title} — фото ${i + 2}`}
-                    fill
-                    placeholder="blur"
-                    blurDataURL={image.blurDataURL}
-                    sizes="(max-width: 1160px) 50vw, 580px"
-                    className="object-cover"
-                  />
-                  {last ? (
-                    <button
-                      type="button"
-                      className="absolute inset-0 flex cursor-pointer items-center justify-center gap-2 bg-black/45 font-semibold text-white backdrop-blur-[2px] transition-colors hover:bg-black/55"
-                    >
-                      <Images className="size-5" aria-hidden />
-                      Все 12 фото
-                    </button>
-                  ) : null}
-                </div>
-              )
-            })}
-          </div>
+          {grid.length > 0 ? (
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              {grid.map((image, i) => {
+                const last = i === grid.length - 1 && gallery.length > 6
+                return (
+                  <div
+                    key={image.src}
+                    className="relative aspect-[3/2] overflow-hidden rounded-xl bg-surface-muted"
+                  >
+                    <Image
+                      src={image.src}
+                      alt={`${item!.title} — фото ${i + 2}`}
+                      fill
+                      placeholder="blur"
+                      blurDataURL={image.blurDataURL}
+                      sizes="(max-width: 1160px) 50vw, 580px"
+                      className="object-cover"
+                    />
+                    {last ? (
+                      <button
+                        type="button"
+                        className="absolute inset-0 flex cursor-pointer items-center justify-center gap-2 bg-black/45 font-semibold text-white backdrop-blur-[2px] transition-colors hover:bg-black/55"
+                      >
+                        <Images className="size-5" aria-hidden />
+                        Все {gallery.length} фото
+                      </button>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+          ) : null}
         </section>
 
         <section aria-label="Параметры" className="mt-8">
@@ -263,55 +257,40 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
           </dl>
         </section>
 
-        <section className="mt-12">
-          <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-            {beforeAfter.title}
-          </h2>
-          <p className="mt-1.5 max-w-2xl text-[15px] text-muted-foreground">{beforeAfter.text}</p>
-          <BeforeAfterSlider
-            before={img('ba-before')}
-            after={img('ba-after')}
-            className="mt-5 sm:rounded-2xl"
-          />
-        </section>
+        {beforeAfter ? (
+          <section className="mt-12">
+            <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+              {beforeAfterCopy.title}
+            </h2>
+            <p className="mt-1.5 max-w-2xl text-[15px] text-muted-foreground">
+              {beforeAfterCopy.text}
+            </p>
+            <BeforeAfterSlider
+              before={beforeAfter.before}
+              after={beforeAfter.after}
+              className="mt-5 sm:rounded-2xl"
+            />
+          </section>
+        ) : null}
 
         <section className="mt-12 grid gap-10 lg:grid-cols-[1fr_360px]">
           <div>
-            <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-              {deal ? 'Как прошла сделка' : 'О проекте'}
-            </h2>
-            <div className="mt-4 space-y-4 text-[15px] leading-relaxed text-foreground/90 sm:text-base">
-              {story.map((p) => (
-                <p key={p.slice(0, 24)}>{p}</p>
-              ))}
-            </div>
-
-            <h2 className="mt-10 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-              {deal ? 'Команда подготовки' : 'Команда проекта'}
-            </h2>
-            <ul className="mt-4 flex flex-wrap gap-3">
-              {team.map((m) => {
-                const t = specialistBySlug(m.slug)
-                return (
-                  <li key={m.slug}>
-                    <Link
-                      href={`/s/${t.slug}`}
-                      className="flex items-center gap-3 rounded-full border border-border bg-surface py-2 pr-5 pl-2 transition-colors hover:border-border-strong"
-                    >
-                      <Avatar name={t.name} className="size-9" />
-                      <span>
-                        <span className="block text-sm font-semibold">{t.name}</span>
-                        <span className="block text-xs text-muted-foreground">{m.role}</span>
-                      </span>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
+            {story.length > 0 ? (
+              <>
+                <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+                  {deal ? 'Как прошла сделка' : 'О проекте'}
+                </h2>
+                <div className="mt-4 space-y-4 text-[15px] leading-relaxed text-foreground/90 sm:text-base">
+                  {story.map((p) => (
+                    <p key={p.slice(0, 24)}>{p}</p>
+                  ))}
+                </div>
+              </>
+            ) : null}
 
             {review ? (
               <>
-                <h2 className="mt-10 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+                <h2 className={`${story.length > 0 ? 'mt-10 ' : ''}font-display text-2xl font-semibold tracking-tight sm:text-3xl`}>
                   {deal ? 'Отзыв клиента по сделке' : 'Отзыв клиента'}
                 </h2>
                 <div className="mt-4">
@@ -347,17 +326,19 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
           </p>
         </section>
 
-        <section className="mt-14">
-          <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-            {deal ? 'Другие сделки' : 'Похожие проекты'}
-          </h2>
-          {/* ровная сетка: masonry только в ленте */}
-          <div className="mt-5 grid grid-cols-2 gap-5 lg:grid-cols-4">
-            {related.map((c) => (
-              <CaseCard key={c.id} item={c} frame="fixed" hideAuthor={Boolean(deal)} />
-            ))}
-          </div>
-        </section>
+        {related.length > 0 ? (
+          <section className="mt-14">
+            <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+              {deal ? 'Другие сделки' : 'Похожие проекты'}
+            </h2>
+            {/* ровная сетка: masonry только в ленте */}
+            <div className="mt-5 grid grid-cols-2 gap-5 lg:grid-cols-4">
+              {related.map((c) => (
+                <CaseCard key={c.id} item={c} frame="fixed" hideAuthor={Boolean(deal)} />
+              ))}
+            </div>
+          </section>
+        ) : null}
       </main>
       <SiteFooter className="max-md:pb-24" />
 

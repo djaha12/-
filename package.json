@@ -6,7 +6,11 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --filter @atelier/web dev",
+    "dev": "node scripts/dev-db.mjs start && pnpm --filter @atelier/web dev",
+    "db:start": "node scripts/dev-db.mjs start",
+    "db:stop": "node scripts/dev-db.mjs stop",
+    "db:migrate": "pnpm --filter @atelier/db migrate:dev",
+    "db:seed": "pnpm --filter @atelier/db seed",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",

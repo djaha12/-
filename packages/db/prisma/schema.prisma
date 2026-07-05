@@ -98,9 +98,43 @@ model User {
   pushSubscriptions  PushSubscription[]
   strikes            UserStrike[]
   devices            UserDevice[]
+  sessions           Session[]
 
   @@index([role, createdAt])
   @@index([phoneHash])
+}
+
+// =============================================================================
+// AUTH (M2): одноразовые коды и сессии
+// =============================================================================
+
+model OtpCode {
+  id         String    @id @default(cuid())
+  /// Телефон E.164; коды не привязаны к User — аккаунт создаётся после verify.
+  phone      String
+  /// SHA-256 хэш кода — сам код в БД не хранится.
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([phone, createdAt(sort: Desc)])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  /// SHA-256 хэш токена из httpOnly-cookie — сам токен в БД не хранится.
+  tokenHash  String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 /// Специализации специалистов (spec §Роли). Мастеров-ремонтников НЕТ намеренно.
@@ -137,6 +171,12 @@ model SpecialistProfile {
   /// Единица измерения вилки — за м², за проект, за час (для честного сравнения).
   priceUnit      PriceUnit       @default(PER_PROJECT)
   acceptsOrders  Boolean         @default(true)
+  /// Метка «работает в X» (решение 03/6): просто текст, org-механика — Фаза 1.5.
+  worksAtLabel   String?
+  /// Самозаявленное число закрытых сделок риелтора («47 сделок, 21 подтверждена»).
+  declaredDealsCount Int?
+  /// Денорм одобренной верификации личности (источник — Verification, M5).
+  identityVerifiedAt DateTime?
   /// Счётчики витрины (инкрементально, точные данные — в PostHog/AnalyticsOutbox).
   viewsCount     Int             @default(0)
   /// Медиана первого ответа в заявках, мин. Считает фоновый джоб из данных чата;
@@ -147,12 +187,26 @@ model SpecialistProfile {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  styles          SpecialistStyle[]
-  reviewAggregate ReviewAggregate?
-  boostCampaigns  BoostCampaign[]
+  styles             SpecialistStyle[]
+  expertiseDistricts SpecialistDistrict[]
+  reviewAggregate    ReviewAggregate?
+  boostCampaigns     BoostCampaign[]
 
   @@index([specialization, cityId, acceptsOrders])
   @@index([cityId])
+}
+
+/// Районы экспертизы риелтора (docs/05 §5.4) — по образцу SpecialistStyle.
+model SpecialistDistrict {
+  specialistProfileId String
+  specialistProfile   SpecialistProfile @relation(fields: [specialistProfileId], references: [id])
+  districtId          String
+  district            District          @relation(fields: [districtId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@id([specialistProfileId, districtId])
+  @@index([districtId])
 }
 
 enum PriceUnit {
@@ -321,8 +375,9 @@ model District {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  specialistProfiles SpecialistProfile[]
-  cases              Case[]
+  specialistProfiles  SpecialistProfile[]
+  cases               Case[]
+  specialistDistricts SpecialistDistrict[]
 
   @@unique([cityId, slug])
 }
@@ -394,6 +449,21 @@ enum CaseStatus {
   ARCHIVED
 }
 
+/// Realtor-first (docs/05 §5): тип сделки кейса-сделки.
+enum DealType {
+  SALE
+  RENT_OUT
+  BUY_ASSIST
+  RENT_ASSIST
+}
+
+/// Видимость цены сделки. Точная цена при RANGE/HIDDEN не отдаётся никогда (03/§13).
+enum DealPriceVisibility {
+  EXACT
+  RANGE
+  HIDDEN
+}
+
 /// Роль автора в проекте — честная атрибуция вклада.
 enum CaseAuthorRole {
   FULL_PROJECT
@@ -450,6 +520,22 @@ model Case {
   savesCount  Int @default(0)
   viewsCount  Int @default(0)
 
+  // ——— Кейс-сделка (Realtor-first, docs/05 §5; все поля nullable — аддитивно) ———
+  dealType            DealType?
+  /// Тип объекта — единый словарь с брифами (матчинг поручение↔сделка).
+  propertyType        BriefObjectType?
+  /// Точная цена (EXACT), сомы; для аренды — в месяц.
+  dealPriceSom        Int?
+  /// Вилка (RANGE) — публикуется только диапазон.
+  dealPriceMinSom     Int?
+  dealPriceMaxSom     Int?
+  dealPriceVisibility DealPriceVisibility @default(RANGE)
+  /// Дней от публикации до задатка/договора; только SALE/RENT_OUT.
+  daysOnMarket        Int?
+  /// Денорм «подтверждено клиентом». Источник истины — связка с завершённым
+  /// Order (confirmedOrderId, M4); до M4 поле заполняет только seed/миграция.
+  dealConfirmedAt     DateTime?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -465,6 +551,7 @@ model Case {
   briefResponseLinks BriefResponseCase[]
 
   // Лента: published-кейсы по свежести; фильтры по городу/категории.
+  @@index([dealType, status, publishedAt(sort: Desc)])
   @@index([status, publishedAt(sort: Desc)])
   @@index([cityId, status, publishedAt(sort: Desc)])
   @@index([categoryId, status])
@@ -671,6 +758,7 @@ enum BriefObjectType {
   COMMERCIAL
   OFFICE
   LAND
+  NEW_BUILD
   OTHER
 }
 
@@ -992,6 +1080,13 @@ model ReviewAggregate {
   completedOrdersCount Int   @default(0)
   /// % повторных клиентов (0–100) — публичная честная метрика.
   repeatClientsPct   Decimal @default(0) @db.Decimal(5, 2)
+  // ——— Realtor-first агрегаты (docs/05 §5.4) ———
+  /// Сделки, подтверждённые клиентом через Order.
+  confirmedDealsCount Int  @default(0)
+  /// Кейсы-сделки в профиле (published).
+  dealCasesCount      Int  @default(0)
+  /// Медиана daysOnMarket по подтверждённым; null при < 5 (порог честности).
+  medianDaysOnMarket  Int?
   recalculatedAt     DateTime @default(now())
 
   createdAt DateTime @default(now())

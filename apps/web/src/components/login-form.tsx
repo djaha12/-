@@ -1,15 +1,45 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import { Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { trpc } from '@/lib/trpc'
+
+const normalizePhone = (raw: string) => `+${raw.replace(/\D/g, '')}`
 
 /** Вход в 2 шага: телефон → код. Код приходит в Telegram, SMS — запасной канал. */
 export function LoginForm({ initialStep = 1 }: { initialStep?: number }) {
+  const router = useRouter()
   const [step, setStep] = React.useState(initialStep)
   const [phone, setPhone] = React.useState(initialStep > 1 ? '+996 555 123 456' : '+996 ')
   const [code, setCode] = React.useState('')
+  const [devCode, setDevCode] = React.useState<string | undefined>()
+  const [resendIn, setResendIn] = React.useState(0)
+
+  React.useEffect(() => {
+    if (resendIn <= 0) return
+    const t = setInterval(() => setResendIn((s) => s - 1), 1000)
+    return () => clearInterval(t)
+  }, [resendIn])
+
+  const requestOtp = trpc.auth.requestOtp.useMutation({
+    onSuccess: (data) => {
+      setDevCode(data.devCode)
+      setStep(2)
+      setResendIn(60)
+      setCode('')
+    },
+  })
+  const verifyOtp = trpc.auth.verifyOtp.useMutation({
+    onSuccess: () => {
+      router.push('/')
+      router.refresh()
+    },
+  })
+
+  const sendCode = () => requestOtp.mutate({ phone: normalizePhone(phone) })
 
   return (
     <div className="w-full max-w-sm">
@@ -26,7 +56,7 @@ export function LoginForm({ initialStep = 1 }: { initialStep?: number }) {
             className="mt-6 space-y-3"
             onSubmit={(e) => {
               e.preventDefault()
-              setStep(2)
+              sendCode()
             }}
           >
             <label className="block">
@@ -37,11 +67,15 @@ export function LoginForm({ initialStep = 1 }: { initialStep?: number }) {
                 autoComplete="tel"
                 autoFocus
                 value={phone}
+                aria-invalid={requestOtp.isError || undefined}
                 onChange={(e) => setPhone(e.target.value)}
                 className="h-12 text-center text-lg font-semibold tracking-wide"
               />
             </label>
-            <Button type="submit" size="lg" className="w-full">
+            {requestOtp.isError ? (
+              <p className="text-center text-[13px] text-danger">{requestOtp.error.message}</p>
+            ) : null}
+            <Button type="submit" size="lg" className="w-full" loading={requestOtp.isPending}>
               Получить код
             </Button>
           </form>
@@ -98,9 +132,17 @@ export function LoginForm({ initialStep = 1 }: { initialStep?: number }) {
               Изменить номер
             </button>
           </p>
+          {devCode ? (
+            <p className="mx-auto mt-3 w-fit rounded-full bg-accent-soft px-4 py-1.5 text-[13px] font-semibold text-accent-soft-foreground">
+              Dev-режим: ваш код {devCode}
+            </p>
+          ) : null}
           <form
             className="mt-6 space-y-3"
-            onSubmit={(e) => e.preventDefault()}
+            onSubmit={(e) => {
+              e.preventDefault()
+              verifyOtp.mutate({ phone: normalizePhone(phone), code })
+            }}
           >
             <label className="block">
               <span className="sr-only">Код подтверждения</span>
@@ -111,16 +153,39 @@ export function LoginForm({ initialStep = 1 }: { initialStep?: number }) {
                 maxLength={6}
                 value={code}
                 placeholder="••••••"
+                aria-invalid={verifyOtp.isError || undefined}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                 className="h-14 text-center text-2xl font-bold tracking-[0.5em]"
               />
             </label>
-            <Button type="submit" size="lg" className="w-full" disabled={code.length !== 6}>
+            {verifyOtp.isError ? (
+              <p className="text-center text-[13px] text-danger">{verifyOtp.error.message}</p>
+            ) : null}
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={code.length !== 6}
+              loading={verifyOtp.isPending}
+            >
               Войти
             </Button>
           </form>
           <p className="mt-3 text-center text-[13px] text-muted-foreground">
-            Не пришло? Отправим снова через 47 сек ·{' '}
+            {resendIn > 0 ? (
+              <>Не пришло? Отправим снова через {resendIn} сек · </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={sendCode}
+                  className="cursor-pointer font-medium text-foreground underline underline-offset-2"
+                >
+                  Отправить ещё раз
+                </button>{' '}
+                ·{' '}
+              </>
+            )}
             <button
               type="button"
               className="cursor-pointer font-medium text-foreground underline underline-offset-2"
