@@ -18,11 +18,13 @@ type Transition = { to: OrderStatus; by: OrderActor[] }
 
 export const ORDER_TRANSITIONS: Record<OrderStatus, Transition[]> = {
   discussion: [
-    { to: 'agreed', by: ['client'] }, // условия предлагает специалист, подтверждает клиент
+    // переход триггерит ВТОРОЕ подтверждение — любой стороной; взаимность
+    // гарантируют поля clientAgreedAt/specialistAgreedAt на уровне API (docs/11 §2)
+    { to: 'agreed', by: ['client', 'specialist'] },
     { to: 'cancelled', by: ['client', 'specialist'] },
   ],
   agreed: [
-    { to: 'in_progress', by: ['specialist'] },
+    { to: 'in_progress', by: ['specialist', 'system'] }, // system = автоматически с первым чек-поинтом
     { to: 'cancelled', by: ['client', 'specialist'] },
   ],
   in_progress: [
@@ -32,8 +34,8 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, Transition[]> = {
   ],
   delivered: [
     { to: 'completed', by: ['client', 'system'] }, // system = авто-подтверждение через N дней
-    { to: 'disputed', by: ['client'] },
-    { to: 'in_progress', by: ['specialist'] }, // вернуть в работу по замечаниям
+    { to: 'disputed', by: ['client', 'specialist'] },
+    { to: 'in_progress', by: ['client'] }, // клиент возвращает на доработку (≤3 возвратов, сбрасывает autoConfirmAt)
   ],
   completed: [], // терминальное; отзыв открывается здесь
   cancelled: [], // терминальное
@@ -56,3 +58,6 @@ export function canTransitionOrder(
 
 /** Дней до авто-подтверждения «сдан» → «завершён», если клиент молчит */
 export const AUTO_CONFIRM_DAYS = 7
+
+/** Максимум возвратов «сдан» → «в работе» клиентом (docs/11 §2) */
+export const MAX_DELIVERY_RETURNS = 3

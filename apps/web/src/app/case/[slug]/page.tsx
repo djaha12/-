@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { Images, MapPin, Share2 } from 'lucide-react'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
@@ -11,7 +12,7 @@ import { CaseCard } from '@/components/case-card'
 import { ReviewCard } from '@/components/review-card'
 import { SaveButton } from '@/components/save-button'
 import { VerifiedBadge } from '@/components/verified-badge'
-import { caseBySlug, cases, img, reviews, specialistBySlug } from '@/mock/data'
+import { cases, findCase, img, reviews, specialistBySlug } from '@/mock/data'
 import { formatBudgetRange } from '@/lib/utils'
 
 const GALLERY = ['g2', 'g3', 'g4', 'g5'] as const
@@ -22,7 +23,8 @@ const TEAM = [
 
 export default async function CasePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const item = caseBySlug(slug)
+  const item = findCase(slug)
+  if (!item) notFound()
   const author = specialistBySlug(item.specialistSlug)
   const hero = img('g1')
   const budget = formatBudgetRange(item.budgetFrom, item.budgetTo)
@@ -123,7 +125,9 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
         <section aria-label="Параметры проекта" className="mt-8">
           <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border md:grid-cols-4">
             {[
-              { dt: 'Площадь', dd: `${item.areaM2} м²`, sub: '2 комнаты + кухня-гостиная' },
+              ...(item.areaM2
+                ? [{ dt: 'Площадь', dd: `${item.areaM2} м²`, sub: '2 комнаты + кухня-гостиная' }]
+                : []),
               { dt: 'Бюджет', dd: budget.som, sub: budget.usd },
               { dt: 'Срок', dd: '3,5 месяца', sub: 'от обмеров до сдачи' },
               { dt: 'Роль', dd: 'Полный дизайн-проект', sub: 'с авторским надзором' },

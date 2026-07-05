@@ -33,9 +33,24 @@ describe('state machine заказа', () => {
     expect(canTransitionOrder('delivered', 'completed', 'system')).toBe(true)
     expect(canTransitionOrder('delivered', 'completed', 'specialist')).toBe(false)
   })
-  it('условия подтверждает клиент — специалист не может сам «договориться»', () => {
+  it('«договорённость» триггерит второе подтверждение любой стороной, но не система/админ', () => {
     expect(canTransitionOrder('discussion', 'agreed', 'client')).toBe(true)
-    expect(canTransitionOrder('discussion', 'agreed', 'specialist')).toBe(false)
+    expect(canTransitionOrder('discussion', 'agreed', 'specialist')).toBe(true)
+    expect(canTransitionOrder('discussion', 'agreed', 'system')).toBe(false)
+    expect(canTransitionOrder('discussion', 'agreed', 'admin')).toBe(false)
+  })
+  it('вернуть сданную работу на доработку может только клиент', () => {
+    expect(canTransitionOrder('delivered', 'in_progress', 'client')).toBe(true)
+    expect(canTransitionOrder('delivered', 'in_progress', 'specialist')).toBe(false)
+  })
+  it('спор по сданной работе может открыть любая сторона', () => {
+    expect(canTransitionOrder('delivered', 'disputed', 'client')).toBe(true)
+    expect(canTransitionOrder('delivered', 'disputed', 'specialist')).toBe(true)
+  })
+  it('старт работ: специалист или система (первый чек-поинт), но не клиент', () => {
+    expect(canTransitionOrder('agreed', 'in_progress', 'specialist')).toBe(true)
+    expect(canTransitionOrder('agreed', 'in_progress', 'system')).toBe(true)
+    expect(canTransitionOrder('agreed', 'in_progress', 'client')).toBe(false)
   })
   it('спор разруливает только админ', () => {
     expect(canTransitionOrder('disputed', 'completed', 'admin')).toBe(true)
@@ -75,6 +90,10 @@ describe('отзывы — антинакрутка by design', () => {
     expect(
       canSubmitReview({ orderStatus: 'completed', reviewerIsOrderClient: true, alreadyReviewed: true }).allowed,
     ).toBe(false)
+  })
+  it('окно отзыва — 90 дней от завершения', () => {
+    expect(canSubmitReview({ ...base, orderStatus: 'completed', daysSinceCompleted: 90 }).allowed).toBe(true)
+    expect(canSubmitReview({ ...base, orderStatus: 'completed', daysSinceCompleted: 91 }).allowed).toBe(false)
   })
   it('подшкалы: целые 1–5', () => {
     expect(isValidScores({ quality: 5, timing: 4, communication: 5, budget: 3 })).toBe(true)

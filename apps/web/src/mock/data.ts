@@ -154,8 +154,13 @@ export const reviews: Review[] = [
   },
 ]
 
+export function findSpecialist(slug: string): Specialist | undefined {
+  return specialists.find((x) => x.slug === slug)
+}
+
+/** строгая версия для внутренних ссылок (карточки), где slug гарантирован данными */
 export function specialistBySlug(slug: string): Specialist {
-  const s = specialists.find((x) => x.slug === slug)
+  const s = findSpecialist(slug)
   if (!s) throw new Error(`Нет специалиста: ${slug}`)
   return s
 }
@@ -164,8 +169,6 @@ export function casesOf(slug: string): CaseItem[] {
   return cases.filter((c) => c.specialistSlug === slug)
 }
 
-export function caseBySlug(slug: string): CaseItem {
-  const c = cases.find((x) => x.slug === slug)
-  if (!c) throw new Error(`Нет кейса: ${slug}`)
-  return c
+export function findCase(slug: string): CaseItem | undefined {
+  return cases.find((x) => x.slug === slug)
 }

@@ -29,6 +29,7 @@ function FilterChip({
   return (
     <button
       type="button"
+      aria-pressed={active}
       className={cn(
         'inline-flex h-11 shrink-0 cursor-pointer items-center gap-1 rounded-full border px-4 text-sm font-medium transition-colors duration-150',
         active

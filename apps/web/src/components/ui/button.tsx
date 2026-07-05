@@ -46,6 +46,7 @@ function Button({
   loading = false,
   disabled,
   children,
+  onClick,
   ...props
 }: ButtonProps) {
   const Comp = asChild ? Slot : 'button'
@@ -59,6 +60,10 @@ function Button({
       )}
       aria-busy={loading || undefined}
       disabled={disabled}
+      // guard и для клавиатуры: Enter/Space не дублируют сабмит при loading.
+      // Оборачиваем только переданный onClick — он существует лишь в клиентской границе,
+      // серверные <Button loading> не получают функцию-проп (RSC-ограничение).
+      onClick={onClick && loading ? (e) => e.preventDefault() : onClick}
       {...props}
     >
       {loading ? (

@@ -1,11 +1,18 @@
 import type { OrderStatus } from './orders'
 
+/** Окно подачи отзыва от completedAt (docs/03 §12) */
+export const REVIEW_WINDOW_DAYS = 90
+/** Окно редактирования уже оставленного отзыва, часов */
+export const REVIEW_EDIT_WINDOW_HOURS = 72
+
 export interface ReviewGateInput {
   orderStatus: OrderStatus
   /** автор отзыва — клиент именно этого заказа */
   reviewerIsOrderClient: boolean
   /** по заказу уже есть отзыв (unique-констрейнт в БД дублирует это правило) */
   alreadyReviewed: boolean
+  /** полных дней с момента завершения заказа; undefined = только что */
+  daysSinceCompleted?: number
 }
 
 export type ReviewGate = { allowed: true } | { allowed: false; reason: string }
@@ -25,7 +32,16 @@ export function canSubmitReview(input: ReviewGateInput): ReviewGate {
     return { allowed: false, reason: 'Отзыв может оставить только клиент этого заказа.' }
   }
   if (input.alreadyReviewed) {
-    return { allowed: false, reason: 'По этому заказу отзыв уже оставлен. Его можно отредактировать в течение 72 часов.' }
+    return {
+      allowed: false,
+      reason: `По этому заказу отзыв уже оставлен. Его можно отредактировать в течение ${REVIEW_EDIT_WINDOW_HOURS} часов.`,
+    }
+  }
+  if ((input.daysSinceCompleted ?? 0) > REVIEW_WINDOW_DAYS) {
+    return {
+      allowed: false,
+      reason: `Отзыв можно оставить в течение ${REVIEW_WINDOW_DAYS} дней после завершения заказа.`,
+    }
   }
   return { allowed: true }
 }

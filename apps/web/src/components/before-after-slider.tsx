@@ -43,9 +43,12 @@ export function BeforeAfterSlider({
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
+    // touch-pan-y: вертикальный скролл шлёт pointercancel вместо pointerup
+    window.addEventListener('pointercancel', onUp)
     return () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
     }
   }, [updateFromClientX])
 
@@ -94,12 +97,14 @@ export function BeforeAfterSlider({
           type="button"
           role="slider"
           aria-label="Сравнить до и после"
-          aria-valuemin={0}
-          aria-valuemax={100}
+          aria-valuemin={2}
+          aria-valuemax={98}
           aria-valuenow={Math.round(pos)}
           onKeyDown={(e) => {
             if (e.key === 'ArrowLeft') setPos((p) => Math.max(2, p - 4))
             if (e.key === 'ArrowRight') setPos((p) => Math.min(98, p + 4))
+            if (e.key === 'Home') setPos(2)
+            if (e.key === 'End') setPos(98)
           }}
           className="absolute top-1/2 -translate-1/2 flex size-11 cursor-ew-resize items-center justify-center rounded-full bg-white text-[#2A2521] shadow-float transition-transform duration-150 hover:scale-105"
         >

@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import { notFound } from 'next/navigation'
 import { Clock, MapPin, Repeat2, Share2 } from 'lucide-react'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
@@ -11,7 +12,7 @@ import { ReviewCard } from '@/components/review-card'
 import { RatingStars } from '@/components/rating-stars'
 import { SaveButton } from '@/components/save-button'
 import { VerifiedBadge } from '@/components/verified-badge'
-import { casesOf, img, reviews, specialistBySlug } from '@/mock/data'
+import { casesOf, findSpecialist, img, reviews } from '@/mock/data'
 import { formatSom, plural } from '@/lib/utils'
 
 const SUBSCALE_SUMMARY = [
@@ -30,7 +31,8 @@ export default async function ProfilePage({
 }) {
   const { username } = await params
   const { tab } = await searchParams
-  const s = specialistBySlug(username)
+  const s = findSpecialist(username)
+  if (!s) notFound()
   const cover = img('cover1')
   const ownCases = casesOf(s.slug)
 

@@ -4,25 +4,27 @@
 Формула: портфолио → репутация → клиенты → рост. Приоритет №1 — UX/UI.
 
 ## Статус
-Фаза 0: анализ + план готовы, ожидают подтверждения Dars. Кода нет.
+M1 «Фундамент» ЗАВЕРШЁН: UX-флоу (docs/10), модель данных (docs/11 + packages/db, prisma validate ✓),
+API-контракт (docs/12), события/уведомления (docs/13), дизайн-система, 3 эталонных экрана
+(лента / профиль / кейс) — 3 цикла design-review, финал: ready без находок. Тесты core 15/15.
+Следующий блок: M2 «Идентичность и контент» (auth, профили CRUD, кейсы, пайплайн изображений, i18n).
 
 ## Документы
-- docs/00-prompt-analysis.md — противоречия/пробелы ТЗ и принятые техрешения
-- docs/01-questions.md — открытые вопросы к Dars (с дефолтами)
-- docs/02-phase1-plan.md — план MVP: милстоуны M1–M7, процесс блоков, DoD
+- docs/02-phase1-plan.md — план MVP (M1–M7) · docs/03-decisions.md — решения (+§12 дефолты)
+- docs/04-product-spec.md — спецификация · docs/10–13 — UX/данные/API/события
+- docs/drafts/ — рабочие драфты и кросс-ревью M1 (superseded финальными 10–13)
 
-## Утверждаемый стек (детали в docs/00, раздел 3)
-Монорепо pnpm+Turborepo · apps/web: Next.js 15 + TS strict + Tailwind + shadcn +
-TanStack Query + tRPC · apps/services: Fastify (WS-чат, BullMQ, Telegram-бот grammY) ·
-packages/db (Prisma+Postgres), core (доменная логика), i18n (ru/ky/en), config ·
-Meilisearch · Redis · R2+sharp (EXIF-strip, AVIF/WebP, blurhash) · PostHog · Sentry.
+## Стек и команды
+Монорепо pnpm+Turborepo · apps/web: Next.js 15 + TS strict + Tailwind v4 + tRPC (M2) ·
+packages/core (доменные правила, vitest) · packages/db (Prisma) · Meilisearch/Redis/MinIO — compose.
+`pnpm install` → `pnpm gen:mock` → `pnpm dev` · `pnpm test|lint|typecheck|build` ·
+`pnpm shots` (скриншоты 1440/390 × light/dark → screenshots/) ·
+`docker compose -f docker-compose.dev.yml up -d` (M2+).
 
 ## Жёсткие принципы
-- Никаких кредитных/процентных механик — никогда не предлагать.
-- Отзывы только по завершённым заказам внутри платформы.
-- Конфликт «удобство vs скорость разработки» решается в пользу удобства.
-- Каждый блок: план → реализация → design-review + code-review → доказательства
-  (тесты, скриншоты 1440/390 × light/dark через `pnpm shots`) → коммит → показ Dars.
-
-## Команды
-Пока нет (появятся в блоке M1.3 — бутстрап).
+- Никаких кредитных/процентных механик — никогда.
+- Отзывы только по завершённым заказам (canSubmitReview), переходы заказа — canTransitionOrder.
+- Конфликт «удобство vs скорость разработки» — в пользу удобства.
+- Бизнес-инварианты живут ТОЛЬКО в packages/core; UI/API импортируют.
+- Каждый блок: план → реализация → design-review (циклы по скриншотам) + code-review →
+  доказательства (тесты, скриншоты) → коммит → показ Dars. Детали: .claude/skills/atelier-conventions.
