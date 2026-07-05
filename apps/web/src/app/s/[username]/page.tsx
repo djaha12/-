@@ -12,7 +12,7 @@ import { ReviewCard } from '@/components/review-card'
 import { RatingStars } from '@/components/rating-stars'
 import { SaveButton } from '@/components/save-button'
 import { VerifiedBadge } from '@/components/verified-badge'
-import { casesOf, findSpecialist, img, reviews } from '@/mock/data'
+import { casesOf, dealReviews, findSpecialist, img, reviews } from '@/mock/data'
 import { formatSom, plural } from '@/lib/utils'
 
 const SUBSCALE_SUMMARY = [
@@ -33,8 +33,10 @@ export default async function ProfilePage({
   const { tab } = await searchParams
   const s = findSpecialist(username)
   if (!s) notFound()
-  const cover = img('cover1')
+  const isRealtor = Boolean(s.dealStats)
+  const cover = img(isRealtor ? 'cover2' : 'cover1')
   const ownCases = casesOf(s.slug)
+  const ownReviews = isRealtor ? dealReviews : reviews
 
   return (
     <>
@@ -66,7 +68,10 @@ export default async function ProfilePage({
                   {s.verified ? <VerifiedBadge className="text-[20px] sm:text-[24px]" /> : null}
                 </h1>
                 <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] text-muted-foreground">
-                  <span>{s.profession}</span>
+                  <span>
+                    {s.profession}
+                    {s.worksAt ? ` · ${s.worksAt}` : ''}
+                  </span>
                   <span className="inline-flex items-center gap-1">
                     <MapPin className="size-4" aria-hidden />
                     {s.city}
@@ -99,9 +104,18 @@ export default async function ProfilePage({
                 {st}
               </Badge>
             ))}
-            <Badge variant="outline" size="md">
-              от {formatSom(s.priceFrom)}/м²
-            </Badge>
+            {s.dealStats
+              ? s.dealStats.districts.map((d) => (
+                  <Badge key={d} variant="outline" size="md">
+                    <MapPin aria-hidden />
+                    {d}
+                  </Badge>
+                ))
+              : s.priceFrom > 0 && (
+                  <Badge variant="outline" size="md">
+                    от {formatSom(s.priceFrom)}/м²
+                  </Badge>
+                )}
           </div>
 
           <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-4">
@@ -118,23 +132,50 @@ export default async function ProfilePage({
                 ),
                 sub: `${s.reviewsCount} ${plural(s.reviewsCount, 'отзыв', 'отзыва', 'отзывов')}`,
               },
-              {
-                dt: 'Проекты',
-                dd: (
-                  <span className="font-display text-[22px] font-semibold">{s.projectsCount}</span>
-                ),
-                sub: 'завершены через Ателье',
-              },
-              {
-                dt: 'Повторные клиенты',
-                dd: (
-                  <span className="flex items-center gap-1.5 font-display text-[22px] font-semibold">
-                    <Repeat2 className="size-4.5 text-success" aria-hidden />
-                    {s.repeatClientsPct}%
-                  </span>
-                ),
-                sub: 'возвращаются снова',
-              },
+              // у риелтора доверие продают сделки и срок продажи, а не «проекты»
+              ...(s.dealStats
+                ? [
+                    {
+                      dt: 'Сделки',
+                      dd: (
+                        <span className="font-display text-[22px] font-semibold">
+                          {s.dealStats.closed}
+                        </span>
+                      ),
+                      sub: `${s.dealStats.confirmed} ${plural(s.dealStats.confirmed, 'подтверждена', 'подтверждены', 'подтверждено')} клиентами`,
+                    },
+                    {
+                      dt: 'Срок продажи',
+                      dd: (
+                        <span className="font-display text-[22px] font-semibold">
+                          {s.dealStats.medianDaysOnMarket}{' '}
+                          {plural(s.dealStats.medianDaysOnMarket, 'день', 'дня', 'дней')}
+                        </span>
+                      ),
+                      sub: 'типичный срок по подтверждённым сделкам',
+                    },
+                  ]
+                : [
+                    {
+                      dt: 'Проекты',
+                      dd: (
+                        <span className="font-display text-[22px] font-semibold">
+                          {s.projectsCount}
+                        </span>
+                      ),
+                      sub: 'завершены через Ателье',
+                    },
+                    {
+                      dt: 'Повторные клиенты',
+                      dd: (
+                        <span className="flex items-center gap-1.5 font-display text-[22px] font-semibold">
+                          <Repeat2 className="size-4.5 text-success" aria-hidden />
+                          {s.repeatClientsPct}%
+                        </span>
+                      ),
+                      sub: 'возвращаются снова',
+                    },
+                  ]),
               {
                 dt: 'Отвечает',
                 dd: (
@@ -151,7 +192,7 @@ export default async function ProfilePage({
                   {item.dt}
                 </dt>
                 <dd className="mt-1">{item.dd}</dd>
-                <p className="mt-0.5 text-xs text-faint-foreground">{item.sub}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{item.sub}</p>
               </div>
             ))}
           </dl>
@@ -160,7 +201,8 @@ export default async function ProfilePage({
         <Tabs defaultValue={tab ?? 'cases'} className="mt-8">
           <TabsList>
             <TabsTrigger value="cases">
-              Кейсы <span className="text-faint-foreground">{ownCases.length}</span>
+              {isRealtor ? 'Сделки' : 'Кейсы'}{' '}
+              <span className="text-faint-foreground">{ownCases.length}</span>
             </TabsTrigger>
             <TabsTrigger value="reviews">
               Отзывы <span className="text-faint-foreground">{s.reviewsCount}</span>
@@ -169,6 +211,13 @@ export default async function ProfilePage({
           </TabsList>
 
           <TabsContent value="cases">
+            {isRealtor && s.dealStats ? (
+              // 6 кейсов vs «47 сделок» в статистике — снимаем противоречие явно
+              <p className="mb-4 text-[13px] text-muted-foreground">
+                {ownCases.length} {plural(ownCases.length, 'сделка', 'сделки', 'сделок')} оформлены
+                как кейсы — из {s.dealStats.closed} завершённых
+              </p>
+            ) : null}
             {/* в витрине специалиста — ровные ряды (Behance), masonry только в ленте */}
             <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
               {ownCases.map((c) => (
@@ -187,8 +236,8 @@ export default async function ProfilePage({
                   <RatingStars value={s.rating} />
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {s.reviewsCount} {plural(s.reviewsCount, 'отзыв', 'отзыва', 'отзывов')} · все по
-                  завершённым заказам
+                  {s.reviewsCount} {plural(s.reviewsCount, 'отзыв', 'отзыва', 'отзывов')} · все по{' '}
+                  {isRealtor ? 'завершённым сделкам' : 'завершённым заказам'}
                 </p>
                 <div className="mt-4 space-y-2.5">
                   {SUBSCALE_SUMMARY.map((row) => (
@@ -210,13 +259,19 @@ export default async function ProfilePage({
                 </div>
               </aside>
               <div className="space-y-4">
-                {reviews.map((r) => (
-                  <ReviewCard key={r.id} review={r} />
+                {ownReviews.map((r) => (
+                  <ReviewCard
+                    key={r.id}
+                    review={r}
+                    trustLabel={
+                      isRealtor ? 'Сделка проведена через Ателье' : 'Заказ выполнен через Ателье'
+                    }
+                  />
                 ))}
                 <div className="flex justify-center pt-2">
                   <Button variant="secondary">
-                    Показать ещё {s.reviewsCount - reviews.length}{' '}
-                    {plural(s.reviewsCount - reviews.length, 'отзыв', 'отзыва', 'отзывов')}
+                    Показать ещё {s.reviewsCount - ownReviews.length}{' '}
+                    {plural(s.reviewsCount - ownReviews.length, 'отзыв', 'отзыва', 'отзывов')}
                   </Button>
                 </div>
               </div>

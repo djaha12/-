@@ -1,30 +1,30 @@
 # ATELIER
 
-Визуальная платформа для креативных специалистов недвижимости (КР → КЗ/УЗ).
+Визуальная платформа репутации специалистов недвижимости (КР → КЗ/УЗ).
+**Realtor-first**: риелторы — первая вертикаль (docs/05-realtors-first.md), остальные — вторая волна.
 Формула: портфолио → репутация → клиенты → рост. Приоритет №1 — UX/UI.
 
 ## Статус
-M1 «Фундамент» ЗАВЕРШЁН: UX-флоу (docs/10), модель данных (docs/11 + packages/db, prisma validate ✓),
-API-контракт (docs/12), события/уведомления (docs/13), дизайн-система, 3 эталонных экрана
-(лента / профиль / кейс) — 3 цикла design-review, финал: ready без находок. Тесты core 15/15.
-Следующий блок: M2 «Идентичность и контент» (auth, профили CRUD, кейсы, пайплайн изображений, i18n).
+M1 «Фундамент» + R1 «Вертикаль риелторов» завершены. Эталоны (лента со сделками, профиль
+дизайнера/риелтора, кейс-проект/кейс-сделка) прошли циклы design-review до «ready». Тесты core 19/19.
+Следующий блок: M2 «Идентичность и контент» с реалтор-дельтами (§7 docs/05): auth, профили
+(+районы экспертизы), мастер кейса с веткой «Параметры сделки», пайплайн изображений, i18n.
 
 ## Документы
-- docs/02-phase1-plan.md — план MVP (M1–M7) · docs/03-decisions.md — решения (+§12 дефолты)
-- docs/04-product-spec.md — спецификация · docs/10–13 — UX/данные/API/события
-- docs/drafts/ — рабочие драфты и кросс-ревью M1 (superseded финальными 10–13)
+- docs/02 план (M1–M7 + realtor-дельты) · docs/03 решения (§12 дефолты, §13 realtor-first)
+- docs/04 спецификация · docs/05 вертикаль риелторов · docs/10–13 UX/данные/API/события
+- Ключевой инвариант вертикали: бейдж «Подтверждено клиентом» — только через завершённый Order;
+  кейс без Order легален, но без бейджа и вне агрегатов. Мы НЕ листинг-портал.
 
 ## Стек и команды
-Монорепо pnpm+Turborepo · apps/web: Next.js 15 + TS strict + Tailwind v4 + tRPC (M2) ·
-packages/core (доменные правила, vitest) · packages/db (Prisma) · Meilisearch/Redis/MinIO — compose.
-`pnpm install` → `pnpm gen:mock` → `pnpm dev` · `pnpm test|lint|typecheck|build` ·
-`pnpm shots` (скриншоты 1440/390 × light/dark → screenshots/) ·
-`docker compose -f docker-compose.dev.yml up -d` (M2+).
+Монорепо pnpm+Turborepo · apps/web (Next.js 15, TS strict, Tailwind v4) · packages/core (vitest) ·
+packages/db (Prisma, validate ✓) · `pnpm install && pnpm gen:mock && pnpm dev` ·
+`pnpm test|lint|typecheck|build` · `pnpm shots` (скриншоты) · docker-compose.dev.yml (M2+).
 
 ## Жёсткие принципы
-- Никаких кредитных/процентных механик — никогда.
-- Отзывы только по завершённым заказам (canSubmitReview), переходы заказа — canTransitionOrder.
-- Конфликт «удобство vs скорость разработки» — в пользу удобства.
-- Бизнес-инварианты живут ТОЛЬКО в packages/core; UI/API импортируют.
-- Каждый блок: план → реализация → design-review (циклы по скриншотам) + code-review →
-  доказательства (тесты, скриншоты) → коммит → показ Dars. Детали: .claude/skills/atelier-conventions.
+- Никаких кредитных/процентных механик; поля комиссии не существует.
+- Отзывы только по завершённым заказам; переходы заказа — canTransitionOrder (packages/core).
+- Точная цена сделки при RANGE/HIDDEN не отдаётся никогда; телефоны скрыты до заявки.
+- Конфликт «удобство vs скорость» — в пользу удобства. Инварианты — только в packages/core.
+- Каждый блок: план → реализация → design-review (циклы) + code-review → доказательства → коммит →
+  показ Dars. Детали: .claude/skills/atelier-conventions.

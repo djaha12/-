@@ -17,6 +17,8 @@ const ROUTES = [
   { name: 'profile', path: '/s/aizhan-saparova' },
   { name: 'profile-reviews', path: '/s/aizhan-saparova?tab=reviews' },
   { name: 'case', path: '/case/loft-dzhal-72' },
+  { name: 'profile-realtor', path: '/s/nurlan-abdykadyrov' },
+  { name: 'case-deal', path: '/case/dvushka-toktogula' },
   { name: 'dev-ui', path: '/dev/ui' },
 ]
 

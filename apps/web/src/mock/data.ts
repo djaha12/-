@@ -13,6 +13,14 @@ export function img(id: string): MockImage {
   return image
 }
 
+export interface DealStats {
+  closed: number
+  /** из них подтверждены клиентами через заказ на платформе */
+  confirmed: number
+  medianDaysOnMarket: number
+  districts: string[]
+}
+
 export interface Specialist {
   slug: string
   name: string
@@ -31,6 +39,21 @@ export interface Specialist {
   acceptsOrders: boolean
   worksAt?: string
   bio: string
+  /** только у риелторов */
+  dealStats?: DealStats
+}
+
+export type DealType = 'sale' | 'rentOut' | 'buyAssist'
+
+export interface DealInfo {
+  type: DealType
+  propertyType: string // «Вторичка», «Новостройка», «Дом», «Коммерция»
+  /** цена сделки в сомах; для аренды — в месяц */
+  price?: number
+  /** дней от публикации до задатка; только завершённые продажи/аренда */
+  daysOnMarket?: number
+  /** сделка проведена через заказ на платформе и подтверждена клиентом */
+  confirmed: boolean
 }
 
 export interface CaseItem {
@@ -45,6 +68,8 @@ export interface CaseItem {
   budgetTo: number
   saves: number
   imageId: string
+  /** присутствует только у кейсов-сделок риелторов */
+  deal?: DealInfo
 }
 
 export interface Review {
@@ -88,7 +113,27 @@ export const specialists: Specialist[] = [
   { slug: 'cholpon-imanova', name: 'Чолпон Иманова', profession: 'Дизайнер интерьера', city: 'Ош', verified: true, rating: 4.8, reviewsCount: 13, projectsCount: 10, repeatClientsPct: 77, responseTime: '~3 часа', memberSince: '2025', styles: ['Классика', 'Неоклассика'], priceFrom: 1500, priceTo: 2800, acceptsOrders: true, bio: '' },
   { slug: 'aleksey-kovalev', name: 'Алексей Ковалёв', profession: 'Архитектор', city: 'Бишкек', verified: false, rating: 4.5, reviewsCount: 6, projectsCount: 5, repeatClientsPct: 40, responseTime: '~8 часов', memberSince: '2025', styles: ['Модернизм'], priceFrom: 1600, priceTo: 3000, acceptsOrders: true, bio: '' },
   { slug: 'aigerim-bekova', name: 'Айгерим Бекова', profession: 'Дизайнер интерьера', city: 'Бишкек', verified: true, rating: 4.9, reviewsCount: 24, projectsCount: 18, repeatClientsPct: 79, responseTime: '~1 час', memberSince: '2024', styles: ['Контемпорари', 'Тёплый минимализм'], priceFrom: 2800, priceTo: 4500, acceptsOrders: true, bio: '' },
-  { slug: 'nurlan-abdykadyrov', name: 'Нурлан Абдыкадыров', profession: 'Риелтор', city: 'Бишкек', verified: true, rating: 4.8, reviewsCount: 52, projectsCount: 47, repeatClientsPct: 64, responseTime: '~20 минут', memberSince: '2024', styles: ['Новостройки', 'Вторичка'], priceFrom: 0, priceTo: 0, acceptsOrders: true, worksAt: 'АН «Ордо»', bio: '' },
+  {
+    slug: 'nurlan-abdykadyrov',
+    name: 'Нурлан Абдыкадыров',
+    profession: 'Риелтор',
+    city: 'Бишкек',
+    verified: true,
+    rating: 4.8,
+    // инвариант честной арифметики: отзывы ≤ подтверждённых сделок (21)
+    reviewsCount: 19,
+    projectsCount: 47,
+    repeatClientsPct: 64,
+    responseTime: '~20 минут',
+    memberSince: '2024',
+    styles: ['Вторичка', 'Новостройки', 'Аренда'],
+    priceFrom: 0,
+    priceTo: 0,
+    acceptsOrders: true,
+    worksAt: 'АН «Ордо»',
+    bio: 'Продаю квартиры в Бишкеке 9 лет: вторичка и новостройки в центре, Джале и на Магистрали. Перед продажей готовлю объект с командой — хоумстейджинг и профессиональная съёмка сокращают срок продажи в среднем вдвое. Все сделки веду через Ателье: история и отзывы — в профиле, ничего на словах.',
+    dealStats: { closed: 47, confirmed: 21, medianDaysOnMarket: 24, districts: ['Центр', 'Джал', 'Магистраль'] },
+  },
 ]
 
 export const cases: CaseItem[] = [
@@ -116,6 +161,30 @@ export const cases: CaseItem[] = [
   { id: 'c22', slug: 'cabinet-vefa', title: 'Кабинет руководителя, БЦ «Вефа»', specialistSlug: 'timur-sadykov', location: 'Бишкек, центр', styles: ['Индастриал'], areaM2: 34, budgetFrom: 640000, budgetTo: 800000, saves: 49, imageId: 'c22' },
   { id: 'c23', slug: 'rental-osh-45', title: 'Квартира под сдачу 45 м²', specialistSlug: 'cholpon-imanova', location: 'Ош', styles: ['Неоклассика'], areaM2: 45, budgetFrom: 500000, budgetTo: 620000, saves: 77, imageId: 'c23' },
   { id: 'c24', slug: 'terrace-bosteri', title: 'Терраса с панорамой озера', specialistSlug: 'daniyar-osmonov', location: 'Бостери', styles: ['Органический'], areaM2: 60, budgetFrom: 900000, budgetTo: 1250000, saves: 154, imageId: 'c24' },
+  // сделки риелтора — история, не объявления
+  { id: 'd01', slug: 'dvushka-toktogula', title: 'Двушка на Токтогула, 58 м²', specialistSlug: 'nurlan-abdykadyrov', location: 'Бишкек, центр', styles: [], areaM2: 58, budgetFrom: 0, budgetTo: 0, saves: 87, imageId: 'd01', deal: { type: 'sale', propertyType: 'Вторичка', price: 4650000, daysOnMarket: 18, confirmed: true } },
+  { id: 'd02', slug: 'treshka-dzhal-remont', title: 'Трёшка в Джале с ремонтом', specialistSlug: 'nurlan-abdykadyrov', location: 'Бишкек, Джал', styles: [], areaM2: 82, budgetFrom: 0, budgetTo: 0, saves: 64, imageId: 'd02', deal: { type: 'sale', propertyType: 'Вторичка', price: 6200000, daysOnMarket: 31, confirmed: true } },
+  { id: 'd03', slug: 'dom-koy-tash', title: 'Дом в Кой-Таше, 210 м²', specialistSlug: 'nurlan-abdykadyrov', location: 'Кой-Таш', styles: [], areaM2: 210, budgetFrom: 0, budgetTo: 0, saves: 112, imageId: 'd03', deal: { type: 'sale', propertyType: 'Дом', price: 14500000, daysOnMarket: 47, confirmed: false } },
+  { id: 'd04', slug: 'arenda-ofis-manasa', title: 'Офис на Манаса, 85 м²', specialistSlug: 'nurlan-abdykadyrov', location: 'Бишкек, центр', styles: [], areaM2: 85, budgetFrom: 0, budgetTo: 0, saves: 29, imageId: 'd04', deal: { type: 'rentOut', propertyType: 'Коммерция', price: 85000, daysOnMarket: 9, confirmed: true } },
+  { id: 'd05', slug: 'podbor-studiya-asman', title: 'Студия в ЖК «Асман» под сдачу', specialistSlug: 'nurlan-abdykadyrov', location: 'Бишкек, Магистраль', styles: [], areaM2: 38, budgetFrom: 0, budgetTo: 0, saves: 41, imageId: 'd05', deal: { type: 'buyAssist', propertyType: 'Новостройка', confirmed: true } },
+  { id: 'd06', slug: 'kvartira-magistral-ipoteka', title: 'Квартира на Магистрали под ипотеку', specialistSlug: 'nurlan-abdykadyrov', location: 'Бишкек, Магистраль', styles: [], areaM2: 64, budgetFrom: 0, budgetTo: 0, saves: 33, imageId: 'd06', deal: { type: 'sale', propertyType: 'Вторичка', price: 5100000, daysOnMarket: 26, confirmed: false } },
+]
+
+/** порядок ленты: риелторские сделки видны с первого экрана (приоритетная вертикаль) */
+export const feedCases: CaseItem[] = [
+  cases[0]!, // лофт
+  cases.find((c) => c.id === 'd01')!,
+  cases[1]!,
+  cases[2]!,
+  cases.find((c) => c.id === 'd04')!,
+  cases[3]!,
+  cases[4]!,
+  cases.find((c) => c.id === 'd02')!,
+  cases[5]!,
+  cases[6]!,
+  cases[7]!,
+  cases.find((c) => c.id === 'd03')!,
+  ...cases.slice(8, 24),
 ]
 
 export const reviews: Review[] = [
@@ -151,6 +220,42 @@ export const reviews: Review[] = [
     communication: 4,
     budget: 5,
     text: 'Уложились в бюджет до сома. Все материалы — местные поставщики, ничего не ждали месяцами. Отвечала иногда не сразу, но по делу и всегда с вариантами.',
+  },
+]
+
+export const dealReviews: Review[] = [
+  {
+    id: 'dr1',
+    author: 'Гульмира А.',
+    date: 'июнь 2026',
+    caseTitle: 'Двушка на Токтогула, 58 м²',
+    quality: 5,
+    timing: 5,
+    communication: 5,
+    budget: 5,
+    text: 'Квартира висела на house.kg четыре месяца без единого звонка. Нурлан привёл стейджера и фотографа, переупаковал объявление — задаток взяли на 18-й день, по цене даже выше, чем я рассчитывала. Все этапы видела в заказе: показы, звонки, торг.',
+  },
+  {
+    id: 'dr2',
+    author: 'Бакыт Ж.',
+    date: 'апрель 2026',
+    caseTitle: 'Офис на Манаса, 85 м²',
+    quality: 5,
+    timing: 5,
+    communication: 4,
+    budget: 5,
+    text: 'Сдали офис за 9 дней, арендатор — сетевой бизнес с договором на 3 года. Понравилось, что все условия и статусы фиксировались на платформе, а не в переписке.',
+  },
+  {
+    id: 'dr3',
+    author: 'Айгуль С.',
+    date: 'февраль 2026',
+    caseTitle: 'Подбор: студия в ЖК «Асман»',
+    quality: 5,
+    timing: 4,
+    communication: 5,
+    budget: 5,
+    text: 'Искали студию под сдачу. Нурлан отговорил от двух «выгодных» вариантов, объяснив риски застройщика, и нашёл вариант с лучшей арендной ставкой. Честность дороже скорости.',
   },
 ]
 

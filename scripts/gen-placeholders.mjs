@@ -140,6 +140,15 @@ const SPEC = [
   { id: 'ba-after', w: 1400, h: 900, palette: 'terra', motif: 'arch' },
   // обложка профиля
   { id: 'cover1', w: 1920, h: 560, palette: 'sand', motif: 'hills' },
+  // сделки риелторов (d*) + обложка риелтора
+  { id: 'd01', w: F, h: 720, palette: 'slate', motif: 'windows' },
+  { id: 'd02', w: F, h: 1200, palette: 'sand', motif: 'frames' },
+  { id: 'd03', w: F, h: 720, palette: 'stone', motif: 'roof' },
+  { id: 'd04', w: F, h: 960, palette: 'night', motif: 'columns' },
+  { id: 'd05', w: F, h: 1200, palette: 'powder', motif: 'windows' },
+  { id: 'd06', w: F, h: 960, palette: 'graphite', motif: 'frames' },
+  { id: 'dg-hero', w: 1600, h: 1067, palette: 'slate', motif: 'windows' },
+  { id: 'cover2', w: 1920, h: 560, palette: 'slate', motif: 'hills' },
 ]
 
 await mkdir(OUT_DIR, { recursive: true })

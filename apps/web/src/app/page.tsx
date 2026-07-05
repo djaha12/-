@@ -3,18 +3,19 @@ import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { CaseCard } from '@/components/case-card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { cases } from '@/mock/data'
+import { feedCases } from '@/mock/data'
 import { cn } from '@/lib/utils'
 
+// риелторы — приоритетная вертикаль: сразу после «Все»
 const PROFESSIONS = [
   'Все',
+  'Риелторы',
   'Интерьер',
   'Архитектура',
   'Ландшафт',
   'Хоумстейджинг',
   '3D-визуализация',
   'Фото',
-  'Риелторы',
 ]
 
 function FilterChip({
@@ -79,7 +80,7 @@ export default function FeedPage() {
         </section>
 
         <section aria-label="Лента проектов" className="mt-6 columns-2 gap-5 md:columns-3 xl:columns-4">
-          {cases.map((item) => (
+          {feedCases.map((item) => (
             <CaseCard key={item.id} item={item} />
           ))}
         </section>

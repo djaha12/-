@@ -196,5 +196,53 @@
     "width": 1920,
     "height": 560,
     "blurDataURL": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoOAAQABABoJYgCdAEOJosAAP6x9gVzP8kvctFIcm7AwAAA"
+  },
+  "d01": {
+    "src": "/mock/d01.jpg",
+    "width": 960,
+    "height": 720,
+    "blurDataURL": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACwAQCdASoOAAsABABoJZQCdACyxXIgAP6vcxJVkJQLjyTY66PAAA=="
+  },
+  "d02": {
+    "src": "/mock/d02.jpg",
+    "width": 960,
+    "height": 1200,
+    "blurDataURL": "data:image/webp;base64,UklGRkQAAABXRUJQVlA4IDgAAADwAgCdASoOABIAPxFysFC/pqSisAgD8CIJYwCsADCfAAD+5qyLbU/l51zHRZfunCPQQFbuBcAAAA=="
+  },
+  "d03": {
+    "src": "/mock/d03.jpg",
+    "width": 960,
+    "height": 720,
+    "blurDataURL": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACwAQCdASoOAAsABABoJZQCsAEOqSAAAP7naeX9ZJ0/6xAKyyQAAA=="
+  },
+  "d04": {
+    "src": "/mock/d04.jpg",
+    "width": 960,
+    "height": 960,
+    "blurDataURL": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACQAQCdASoOAA4ABABoJaQAAlwYNwAA/qhMyknn0b4JalnszWooAA=="
+  },
+  "d05": {
+    "src": "/mock/d05.jpg",
+    "width": 960,
+    "height": 1200,
+    "blurDataURL": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADwAgCdASoOABIAPxFysFA/pqSisAgD8CIJZwC7AC2xAAD+5pl7Q9czpoZeOiqM0EBDbIAA"
+  },
+  "d06": {
+    "src": "/mock/d06.jpg",
+    "width": 960,
+    "height": 960,
+    "blurDataURL": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACQAQCdASoOAA4ABABoJaQAAbabRgAA/jeFeZQcKYUjPjC0uMAAAA=="
+  },
+  "dg-hero": {
+    "src": "/mock/dg-hero.jpg",
+    "width": 1600,
+    "height": 1067,
+    "blurDataURL": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAADQAQCdASoOAAkABABoJZQCdADwLgV2wAD+jPYxIIVVcYl94XF2oAAA"
+  },
+  "cover2": {
+    "src": "/mock/cover2.jpg",
+    "width": 1920,
+    "height": 560,
+    "blurDataURL": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACwAQCdASoOAAQABABoJZQCdAEO9p5AAN5RbLAusceNVD44AAA="
   }
 }

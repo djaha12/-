@@ -1,5 +1,10 @@
 # ATELIER — UX-флоу MVP (единый документ)
 
+> **Realtor-first (07.2026):** риелторы — первая вертикаль. Дельты к этому документу — в
+> docs/05-realtors-first.md §12 (сценарии Р1–Р5/КР-А/КР-Б, словарь кейса-сделки, каталог /realtors,
+> причины модерации listing_not_deal/address_on_photo). Канонический маршрут кейса — /case/{slug}
+> (встречающийся ниже /c/{slug} считать приведённым).
+
 Статус: **утверждённая сборка** черновиков `drafts/ux-client.md`, `drafts/ux-specialist.md`,
 `drafts/ux-agency-admin.md` с внесёнными правками ревью `drafts/review-ux.md` и `drafts/review-qa.md`
 (все blocker/major, minor — по здравому смыслу). Источник истины по продукту — `04-product-spec.md`,

@@ -10,7 +10,13 @@ const SUBSCALES: Array<{ key: keyof Pick<Review, 'quality' | 'timing' | 'communi
   { key: 'budget', label: 'Бюджет' },
 ]
 
-export function ReviewCard({ review }: { review: Review }) {
+export function ReviewCard({
+  review,
+  trustLabel = 'Заказ выполнен через Ателье',
+}: {
+  review: Review
+  trustLabel?: string
+}) {
   const overall = (review.quality + review.timing + review.communication + review.budget) / 4
   return (
     <article className="rounded-xl border border-border bg-surface p-5">
@@ -40,7 +46,7 @@ export function ReviewCard({ review }: { review: Review }) {
         ))}
         {/* маркер доверия: на 390 — своя строка, не пятая подшкала */}
         <Badge variant="success" className="ml-auto max-sm:mt-1 max-sm:ml-0 max-sm:basis-full">
-          Заказ выполнен через Ателье
+          {trustLabel}
         </Badge>
       </div>
     </article>

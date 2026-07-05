@@ -1,5 +1,10 @@
 # ATELIER — контракт API MVP (финал)
 
+> **Realtor-first (07.2026):** дельта API — docs/05-realtors-first.md §6 (фильтры feed по
+> dealType/району/confirmedOnly, cases.createDraft({fromOrderId}) + linkOrder, realtorStats,
+> каталог /realtors; санитизация точной цены при RANGE/HIDDEN во всех процедурах включая OG).
+> Канонический маршрут кейса — /case/{slug}.
+
 Статус: **финал M1** (заменяет `docs/drafts/api-contract.md`). Источники: `docs/04-product-spec.md`
 (истина), `docs/03-decisions.md`, `docs/00-prompt-analysis.md`, `docs/drafts/schema.prisma` +
 `data-model-notes.md`. Внесены blocker/major-правки ревью (`review-backend.md`, `review-qa.md`,

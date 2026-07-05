@@ -1,10 +1,24 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { Bookmark } from 'lucide-react'
+import { BadgeCheck, Bookmark } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { SaveButton } from '@/components/save-button'
-import { img, specialistBySlug, type CaseItem } from '@/mock/data'
-import { cn } from '@/lib/utils'
+import { img, specialistBySlug, type CaseItem, type DealInfo } from '@/mock/data'
+import { cn, formatDealPrice } from '@/lib/utils'
+
+export const DEAL_TYPE_LABEL: Record<DealInfo['type'], string> = {
+  sale: 'Продажа',
+  rentOut: 'Аренда',
+  buyAssist: 'Подбор',
+}
+
+/** «Продано за 18 дней» — главный сигнал доверия на карточке сделки */
+export function dealOutcomeLabel(deal: DealInfo): string | null {
+  if (deal.type === 'sale' && deal.daysOnMarket) return `Продано за ${deal.daysOnMarket} дн.`
+  if (deal.type === 'rentOut' && deal.daysOnMarket) return `Сдано за ${deal.daysOnMarket} дн.`
+  if (deal.type === 'buyAssist') return 'Подбор выполнен'
+  return null
+}
 
 interface CaseCardProps {
   item: CaseItem
@@ -57,7 +71,25 @@ export function CaseCard({ item, hideAuthor = false, frame = 'natural' }: CaseCa
         <span className="absolute top-3 right-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100 max-md:opacity-100">
           <SaveButton floating />
         </span>
-        {item.styles[0] ? (
+        {item.deal ? (
+          // итог сделки виден всегда — это и есть контент карточки риелтора;
+          // подтверждённая клиентом — зелёная пилюля, самопубликация — нейтральная
+          dealOutcomeLabel(item.deal) ? (
+            <span
+              className={cn(
+                'pointer-events-none absolute bottom-3 left-3 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-white ring-1 ring-white/15 backdrop-blur-sm',
+                // контраст 12px-текста на светлых фото: скрим плотнее, чем у hover-чипов
+                item.deal.confirmed ? 'bg-[oklch(0.46_0.085_155)]/90' : 'bg-black/70',
+              )}
+            >
+              {item.deal.confirmed ? <BadgeCheck className="size-4" aria-hidden /> : null}
+              {dealOutcomeLabel(item.deal)}
+              {item.deal.confirmed ? (
+                <span className="sr-only">, подтверждена клиентом</span>
+              ) : null}
+            </span>
+          ) : null
+        ) : item.styles[0] ? (
           <span className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/45 px-2.5 py-1 text-xs font-medium text-white opacity-0 backdrop-blur-sm transition-opacity duration-200 group-hover:opacity-100">
             {item.styles[0]}
           </span>
@@ -71,6 +103,25 @@ export function CaseCard({ item, hideAuthor = false, frame = 'natural' }: CaseCa
         >
           {item.title}
         </Link>
+        {item.deal ? (
+          <p className="mt-1 text-[13px]">
+            {item.deal.price ? (
+              <>
+                <span className="font-semibold">
+                  {formatDealPrice(item.deal.price, { monthly: item.deal.type === 'rentOut' }).som}
+                </span>
+                <span className="text-muted-foreground max-sm:hidden">
+                  {' '}
+                  {formatDealPrice(item.deal.price, { monthly: item.deal.type === 'rentOut' }).usd}
+                </span>
+                <span className="text-muted-foreground"> · {DEAL_TYPE_LABEL[item.deal.type]}</span>
+              </>
+            ) : (
+              // buyAssist: бейдж «Подбор выполнен» уже назвал тип — без повторов
+              <span className="text-muted-foreground">Под задачу клиента</span>
+            )}
+          </p>
+        ) : null}
         <div className="mt-1.5 flex items-center justify-between gap-2">
           {hideAuthor ? (
             <span className="truncate text-[13px] text-muted-foreground">{item.location}</span>

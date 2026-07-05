@@ -24,6 +24,21 @@ export function formatBudgetRange(fromSom: number, toSom: number): {
   }
 }
 
+export function formatDealPrice(price: number, opts?: { monthly?: boolean }): {
+  som: string
+  usd: string
+} {
+  const fmt = new Intl.NumberFormat('ru-RU')
+  // месячные ставки округляем точнее: на аренде сотни дают до ±10% ошибки
+  const step = opts?.monthly ? 10 : 100
+  const usd = Math.round(price / SOM_PER_USD / step) * step
+  const suffix = opts?.monthly ? ' сом/мес' : ' сом'
+  return {
+    som: `${fmt.format(price)}${suffix}`,
+    usd: `≈ $${fmt.format(usd)}${opts?.monthly ? '/мес' : ''}`,
+  }
+}
+
 export function plural(n: number, one: string, few: string, many: string): string {
   const mod10 = n % 10
   const mod100 = n % 100

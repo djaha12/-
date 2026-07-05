@@ -1,5 +1,10 @@
 # ATELIER — модель данных (финал)
 
+> **Realtor-first (07.2026):** аддитивная дельта для вертикали риелторов — docs/05-realtors-first.md §5
+> (DealType, PropertyType, поля Case: dealType/dealPriceSom/dealPriceVisibility/daysOnMarket/
+> confirmedOrderId @unique, SpecialistDistrict M2M, realtor-агрегаты в ReviewAggregate). Вносится
+> в schema.prisma миграцией блока M2.
+
 Финальная версия по итогам трёх ревью (`docs/drafts/review-backend.md`, `review-qa.md`, `review-ux.md`).
 Схема: `docs/drafts/schema.prisma` — проверена `prisma validate` (Prisma 6, provider postgresql).
 Все доменные инварианты, которые нельзя выразить констрейнтами БД, живут в `packages/core` —
