@@ -396,6 +396,79 @@ export async function markSaved<T extends { slug: string; savedByMe?: boolean }>
   return items.map((i) => ({ ...i, savedByMe: set.has(i.slug) }))
 }
 
+export interface ThreadListItem {
+  id: string
+  otherName: string
+  otherSlug: string | null
+  otherProfession: string | null
+  subject: string | null
+  lastText: string
+  lastMine: boolean
+  lastAt: Date | null
+  orderState: string | null
+  /** я — клиент этого заказа (для ролевых лейблов «ждёт вашего подтверждения») */
+  orderMine: boolean
+  unread: boolean
+}
+
+export async function getThreads(userId: string): Promise<ThreadListItem[]> {
+  const rows = await prisma.chatThread.findMany({
+    where: { participants: { some: { userId } } },
+    orderBy: { lastMessageAt: 'desc' },
+    take: 50,
+    include: {
+      participants: { include: { user: { include: { specialistProfile: true } } } },
+      messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+      orders: { orderBy: { createdAt: 'desc' }, take: 1 },
+    },
+  })
+  return rows.map((t) => {
+    const me = t.participants.find((p) => p.userId === userId)
+    const other = t.participants.find((p) => p.userId !== userId)?.user
+    const last = t.messages[0]
+    const lastMine = last?.senderId === userId
+    return {
+      id: t.id,
+      otherName: other?.displayName ?? 'Пользователь',
+      otherSlug: other?.specialistProfile?.slug ?? null,
+      otherProfession: other?.specialistProfile?.specialization
+        ? (SPECIALIZATION_LABEL[other.specialistProfile.specialization] ?? null)
+        : null,
+      subject: t.subject,
+      lastText: last?.text ?? '',
+      lastMine,
+      lastAt: t.lastMessageAt,
+      orderState: t.orders[0]?.state ?? null,
+      orderMine: t.orders[0]?.clientId === userId,
+      unread:
+        !lastMine &&
+        t.lastMessageAt != null &&
+        (me?.lastReadAt == null || me.lastReadAt < t.lastMessageAt),
+    }
+  })
+}
+
+export async function getThreadHeader(
+  threadId: string,
+  userId: string,
+): Promise<{ id: string; otherName: string; otherSlug: string | null; otherProfession: string | null; subject: string | null } | null> {
+  const t = await prisma.chatThread.findUnique({
+    where: { id: threadId },
+    include: { participants: { include: { user: { include: { specialistProfile: true } } } } },
+  })
+  if (!t || !t.participants.some((p) => p.userId === userId)) return null
+  const other = t.participants.find((p) => p.userId !== userId)?.user
+  return {
+    id: t.id,
+    otherName: other?.displayName ?? 'Пользователь',
+    otherSlug: other?.specialistProfile?.slug ?? null,
+    otherProfession: other?.specialistProfile?.specialization
+      ? (SPECIALIZATION_LABEL[other.specialistProfile.specialization] ?? null)
+      : null,
+    subject: t.subject,
+  }
+}
+
 export async function getSavedCases(viewerId: string): Promise<CaseItem[]> {
   const rows = await prisma.save.findMany({
     where: { userId: viewerId, case: { status: 'PUBLISHED', hiddenAt: null, deletedAt: null } },

@@ -2,8 +2,16 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { initTRPC, TRPCError } from '@trpc/server'
 import superjson from 'superjson'
 import { z } from 'zod'
-import { derivePriceRange } from '@atelier/core'
-import { prisma, Prisma } from '@atelier/db'
+import {
+  canSubmitReview,
+  canTransitionOrder,
+  derivePriceRange,
+  isValidScores,
+  AUTO_CONFIRM_DAYS,
+  type OrderActor,
+  type OrderStatus,
+} from '@atelier/core'
+import { prisma, Prisma, type OrderState } from '@atelier/db'
 import {
   createSession,
   destroySession,
@@ -291,10 +299,483 @@ const savesRouter = t.router({
     }),
 })
 
+/* ============================================================================
+ * M4: заявка → чат → заказ → отзыв → бейдж. Инварианты — только из @atelier/core.
+ * ==========================================================================*/
+
+/** DB enum ↔ доменные статусы core */
+const ORDER_STATE_TO_CORE: Record<OrderState, OrderStatus> = {
+  DISCUSSION: 'discussion',
+  AGREED: 'agreed',
+  IN_PROGRESS: 'in_progress',
+  DELIVERED: 'delivered',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+  DISPUTED: 'disputed',
+}
+const CORE_TO_ORDER_STATE = Object.fromEntries(
+  Object.entries(ORDER_STATE_TO_CORE).map(([k, v]) => [v, k]),
+) as Record<OrderStatus, OrderState>
+
+async function assertParticipant(threadId: string, userId: string) {
+  const thread = await prisma.chatThread.findUnique({
+    where: { id: threadId },
+    include: { participants: { include: { user: { include: { specialistProfile: true } } } } },
+  })
+  if (!thread || !thread.participants.some((p) => p.userId === userId)) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Диалог не найден.' })
+  }
+  return thread
+}
+
+/** Честный транзакционный пересчёт витрины отзывов специалиста */
+async function recalcReviewAggregate(specialistUserId: string) {
+  const profile = await prisma.specialistProfile.findUnique({ where: { userId: specialistUserId } })
+  if (!profile) return
+  const reviews = await prisma.review.findMany({
+    where: { specialistId: specialistUserId, hiddenAt: null, deletedAt: null },
+    select: { scoreQuality: true, scoreTimeline: true, scoreCommunication: true, scoreBudget: true },
+  })
+  const n = reviews.length
+  const avg = (pick: (r: (typeof reviews)[number]) => number) =>
+    n ? reviews.reduce((s, r) => s + pick(r), 0) / n : 0
+  const q = avg((r) => r.scoreQuality)
+  const tl = avg((r) => r.scoreTimeline)
+  const c = avg((r) => r.scoreCommunication)
+  const b = avg((r) => r.scoreBudget)
+  const completedOrders = await prisma.order.count({
+    where: { specialistId: specialistUserId, state: 'COMPLETED' },
+  })
+  await prisma.reviewAggregate.update({
+    where: { specialistProfileId: profile.id },
+    data: {
+      reviewsCount: n,
+      avgQuality: q,
+      avgTimeline: tl,
+      avgCommunication: c,
+      avgBudget: b,
+      avgOverall: n ? (q + tl + c + b) / 4 : 0,
+      completedOrdersCount: completedOrders,
+      recalculatedAt: new Date(),
+    },
+  })
+}
+
+/** Пересчёт риелторской витрины после привязки заказа к кейсу */
+async function recalcDealStats(specialistUserId: string) {
+  const profile = await prisma.specialistProfile.findUnique({ where: { userId: specialistUserId } })
+  if (!profile) return
+  const confirmed = await prisma.case.findMany({
+    where: {
+      authorId: specialistUserId,
+      dealConfirmedAt: { not: null },
+      status: 'PUBLISHED',
+      hiddenAt: null,
+      deletedAt: null,
+    },
+    select: { daysOnMarket: true },
+  })
+  const dealCases = await prisma.case.count({
+    where: { authorId: specialistUserId, dealType: { not: null }, status: 'PUBLISHED', deletedAt: null },
+  })
+  const days = confirmed
+    .map((c) => c.daysOnMarket)
+    .filter((d): d is number => d != null)
+    .sort((a, b) => a - b)
+  // порог честности медианы — 5 подтверждённых значений (docs/05 §5.4);
+  // чётное n — среднее двух центральных (иначе смещение против риелтора)
+  const median =
+    days.length >= 5
+      ? days.length % 2
+        ? days[(days.length - 1) / 2]!
+        : Math.round((days[days.length / 2 - 1]! + days[days.length / 2]!) / 2)
+      : null
+  await prisma.reviewAggregate.update({
+    where: { specialistProfileId: profile.id },
+    data: {
+      confirmedDealsCount: confirmed.length,
+      dealCasesCount: dealCases,
+      medianDaysOnMarket: median,
+    },
+  })
+}
+
+const leadsRouter = t.router({
+  create: authedProcedure
+    .input(
+      z.object({
+        specialistSlug: z.string(),
+        caseSlug: z.string().optional(),
+        text: z.string().trim().min(10, 'Опишите задачу хотя бы парой предложений.').max(2000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const profile = await prisma.specialistProfile.findUnique({
+        where: { slug: input.specialistSlug },
+      })
+      if (!profile || profile.deletedAt) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Специалист не найден.' })
+      }
+      if (profile.userId === ctx.user.id) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Нельзя отправить заявку самому себе.' })
+      }
+      const aboutCase = input.caseSlug
+        ? await prisma.case.findFirst({
+            where: { slug: input.caseSlug, authorId: profile.userId, deletedAt: null },
+          })
+        : null
+
+      // один живой диалог на пару — заявки не плодят треды
+      const existing = await prisma.chatThread.findFirst({
+        where: {
+          AND: [
+            { participants: { some: { userId: ctx.user.id } } },
+            { participants: { some: { userId: profile.userId } } },
+          ],
+        },
+        orderBy: { lastMessageAt: 'desc' },
+      })
+      const thread =
+        existing ??
+        (await prisma.chatThread.create({
+          data: {
+            subject: aboutCase?.title ?? 'Заявка',
+            aboutCaseId: aboutCase?.id ?? null,
+            participants: { create: [{ userId: ctx.user.id }, { userId: profile.userId }] },
+          },
+        }))
+      // в переиспользованном треде контекст нового кейса — в тексте сообщения
+      const text =
+        existing && aboutCase ? `По кейсу «${aboutCase.title}»:\n\n${input.text}` : input.text
+      await prisma.$transaction([
+        prisma.message.create({
+          data: { threadId: thread.id, senderId: ctx.user.id, text },
+        }),
+        prisma.chatThread.update({ where: { id: thread.id }, data: { lastMessageAt: new Date() } }),
+      ])
+      return { threadId: thread.id }
+    }),
+})
+
+const chatRouter = t.router({
+  messages: authedProcedure
+    .input(z.object({ threadId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertParticipant(input.threadId, ctx.user.id)
+      // desc+reverse: в длинном треде показываем ПОСЛЕДНИЕ 200, а не первые
+      const rows = (
+        await prisma.message.findMany({
+          where: { threadId: input.threadId, deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+          take: 200,
+          include: { sender: true },
+        })
+      ).reverse()
+      await prisma.chatParticipant.updateMany({
+        where: { threadId: input.threadId, userId: ctx.user.id },
+        data: { lastReadAt: new Date() },
+      })
+      return rows.map((m) => ({
+        id: m.id,
+        text: m.text ?? '',
+        mine: m.senderId === ctx.user.id,
+        senderName: m.sender.displayName ?? 'Пользователь',
+        at: m.createdAt,
+      }))
+    }),
+
+  send: authedProcedure
+    .input(z.object({ threadId: z.string(), text: z.string().trim().min(1).max(2000) }))
+    .mutation(async ({ ctx, input }) => {
+      await assertParticipant(input.threadId, ctx.user.id)
+      const [message] = await prisma.$transaction([
+        prisma.message.create({
+          data: { threadId: input.threadId, senderId: ctx.user.id, text: input.text },
+        }),
+        prisma.chatThread.update({
+          where: { id: input.threadId },
+          data: { lastMessageAt: new Date() },
+        }),
+      ])
+      return { id: message.id }
+    }),
+})
+
+const ORDER_INPUT_STATES = ['in_progress', 'delivered', 'completed', 'cancelled'] as const
+
+const ordersRouter = t.router({
+  forThread: authedProcedure
+    .input(z.object({ threadId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertParticipant(input.threadId, ctx.user.id)
+      const order = await prisma.order.findFirst({
+        where: { threadId: input.threadId },
+        orderBy: { createdAt: 'desc' },
+        include: { review: true, specialist: { include: { specialistProfile: true } } },
+      })
+      if (!order) return null
+      const myRole: OrderActor = order.clientId === ctx.user.id ? 'client' : 'specialist'
+      // кейсы-сделки специалиста, доступные для привязки бейджа
+      const linkableCases =
+        myRole === 'specialist' && order.state === 'COMPLETED'
+          ? await prisma.case.findMany({
+              where: {
+                authorId: ctx.user.id,
+                dealType: { not: null },
+                dealConfirmedAt: null,
+                status: 'PUBLISHED',
+                deletedAt: null,
+              },
+              select: { slug: true, title: true },
+              take: 20,
+            })
+          : []
+      return {
+        id: order.id,
+        title: order.title,
+        state: ORDER_STATE_TO_CORE[order.state],
+        myRole,
+        amountMin: order.agreedAmountMin,
+        amountMax: order.agreedAmountMax,
+        autoConfirmAt: order.autoConfirmAt,
+        completedAt: order.completedAt,
+        hasReview: order.review != null,
+        specialistName: order.specialist.displayName ?? 'Специалист',
+        linkableCases,
+      }
+    }),
+
+  propose: authedProcedure
+    .input(
+      z
+        .object({
+          threadId: z.string(),
+          title: z.string().trim().min(3).max(120),
+          amountMin: z.number().int().positive().optional(),
+          amountMax: z.number().int().positive().optional(),
+        })
+        .refine((v) => !v.amountMin || !v.amountMax || v.amountMin <= v.amountMax, {
+          message: 'Нижняя граница вилки не может быть больше верхней.',
+        }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const thread = await assertParticipant(input.threadId, ctx.user.id)
+      const me = thread.participants.find((p) => p.userId === ctx.user.id)!
+      const other = thread.participants.find((p) => p.userId !== ctx.user.id)
+      if (!other) throw new TRPCError({ code: 'BAD_REQUEST', message: 'В диалоге нет второй стороны.' })
+      // условия предлагает специалист — у него должен быть профиль
+      if (!me.user.specialistProfile) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Заказ предлагает специалист. Попросите его оформить условия в этом диалоге.',
+        })
+      }
+      try {
+        const order = await prisma.order.create({
+          data: {
+            clientId: other.userId,
+            specialistId: ctx.user.id,
+            threadId: thread.id,
+            state: 'DISCUSSION',
+            title: input.title,
+            agreedAmountMin: input.amountMin ?? null,
+            agreedAmountMax: input.amountMax ?? null,
+            specialistAgreedAt: new Date(),
+            events: { create: { toState: 'DISCUSSION', byUserId: ctx.user.id, reason: 'proposed' } },
+          },
+        })
+        return { orderId: order.id }
+      } catch (e) {
+        // partial unique index order_one_active_per_thread: гонка двойного propose
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'В этом диалоге уже есть активный заказ.',
+          })
+        }
+        throw e
+      }
+    }),
+
+  transition: authedProcedure
+    .input(z.object({ orderId: z.string(), to: z.enum(['agreed', ...ORDER_INPUT_STATES]) }))
+    .mutation(async ({ ctx, input }) => {
+      const order = await prisma.order.findUnique({ where: { id: input.orderId } })
+      if (!order || (order.clientId !== ctx.user.id && order.specialistId !== ctx.user.id)) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Заказ не найден.' })
+      }
+      const actor: OrderActor = order.clientId === ctx.user.id ? 'client' : 'specialist'
+      const from = ORDER_STATE_TO_CORE[order.state]
+      const to = input.to as OrderStatus
+      if (!canTransitionOrder(from, to, actor)) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Этот шаг сейчас недоступен — обновите страницу или дождитесь второй стороны.',
+        })
+      }
+      // взаимность: propose ставит specialistAgreedAt, «договорились» фиксирует ТОЛЬКО клиент —
+      // иначе специалист сам проставил бы согласие клиента (антифрод «2 подтверждения»)
+      if (to === 'agreed' && actor !== 'client') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Условия подтверждает клиент.' })
+      }
+      const now = new Date()
+      try {
+        await prisma.$transaction([
+          prisma.order.update({
+            where: { id: order.id, state: order.state }, // оптимистическая блокировка от гонок
+            data: {
+              state: CORE_TO_ORDER_STATE[to],
+              ...(to === 'agreed' ? { clientAgreedAt: now } : {}),
+              ...(to === 'in_progress' ? { autoConfirmAt: null } : {}), // возврат на доработку сбрасывает таймер
+              ...(to === 'delivered'
+                ? { deliveredAt: now, autoConfirmAt: new Date(now.getTime() + AUTO_CONFIRM_DAYS * 864e5) }
+                : {}),
+              ...(to === 'completed' ? { completedAt: now, confirmedAt: now, autoConfirmed: false } : {}),
+              ...(to === 'cancelled' ? { cancelledAt: now, cancelledById: ctx.user.id } : {}),
+            },
+          }),
+          prisma.orderEvent.create({
+            data: { orderId: order.id, fromState: order.state, toState: CORE_TO_ORDER_STATE[to], byUserId: ctx.user.id },
+          }),
+        ])
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'Статус уже изменился — обновите страницу.',
+          })
+        }
+        throw e
+      }
+      if (to === 'completed') await recalcReviewAggregate(order.specialistId)
+      return { state: to }
+    }),
+
+  linkCase: authedProcedure
+    .input(z.object({ orderId: z.string(), caseSlug: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const order = await prisma.order.findUnique({ where: { id: input.orderId } })
+      if (!order || order.specialistId !== ctx.user.id) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Заказ не найден.' })
+      }
+      if (order.state !== 'COMPLETED') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Бейдж выдаётся только по завершённому заказу.',
+        })
+      }
+      const target = await prisma.case.findFirst({
+        where: {
+          slug: input.caseSlug,
+          authorId: ctx.user.id,
+          dealType: { not: null },
+          status: 'PUBLISHED',
+          hiddenAt: null,
+          deletedAt: null,
+        },
+      })
+      if (!target) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Кейс-сделка не найдена среди ваших.' })
+      }
+      // атомарно: один кейс — один раз; confirmedOrderId @unique = один заказ — один бейдж
+      try {
+        const updated = await prisma.case.updateMany({
+          where: { id: target.id, dealConfirmedAt: null },
+          data: {
+            dealConfirmedAt: order.completedAt ?? new Date(),
+            confirmedOrderId: order.id,
+          },
+        })
+        if (updated.count === 0) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Эта сделка уже подтверждена.' })
+        }
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Этот заказ уже подтвердил другой кейс — один заказ даёт один бейдж.',
+          })
+        }
+        throw e
+      }
+      await recalcDealStats(ctx.user.id)
+      return { confirmed: true }
+    }),
+})
+
+const reviewsRouter = t.router({
+  create: authedProcedure
+    .input(
+      z.object({
+        orderId: z.string(),
+        quality: z.number().int().min(1).max(5),
+        timing: z.number().int().min(1).max(5),
+        communication: z.number().int().min(1).max(5),
+        budget: z.number().int().min(1).max(5),
+        text: z.string().trim().min(10, 'Пара предложений помогут другим клиентам.').max(2000),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const order = await prisma.order.findUnique({
+        where: { id: input.orderId },
+        include: { review: true },
+      })
+      if (!order || (order.clientId !== ctx.user.id && order.specialistId !== ctx.user.id)) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Заказ не найден.' })
+      }
+      const gate = canSubmitReview({
+        orderStatus: ORDER_STATE_TO_CORE[order.state],
+        reviewerIsOrderClient: order.clientId === ctx.user.id,
+        alreadyReviewed: order.review != null,
+        daysSinceCompleted: order.completedAt
+          ? Math.floor((Date.now() - order.completedAt.getTime()) / 864e5)
+          : 0,
+      })
+      if (!gate.allowed) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: gate.reason })
+      }
+      const scores = {
+        quality: input.quality,
+        timing: input.timing,
+        communication: input.communication,
+        budget: input.budget,
+      }
+      if (!isValidScores(scores)) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Оценки — целые от 1 до 5.' })
+      }
+      try {
+        await prisma.review.create({
+          data: {
+            orderId: order.id,
+            authorId: ctx.user.id,
+            specialistId: order.specialistId,
+            scoreQuality: input.quality,
+            scoreTimeline: input.timing,
+            scoreCommunication: input.communication,
+            scoreBudget: input.budget,
+            text: input.text,
+          },
+        })
+      } catch (e) {
+        // гонка двойной отправки: unique(orderId) — отвечаем человеческим текстом
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Отзыв по этому заказу уже есть.' })
+        }
+        throw e
+      }
+      await recalcReviewAggregate(order.specialistId)
+      return { ok: true }
+    }),
+})
+
 export const appRouter = t.router({
   auth: authRouter,
   cases: casesRouter,
   saves: savesRouter,
+  leads: leadsRouter,
+  chat: chatRouter,
+  orders: ordersRouter,
+  reviews: reviewsRouter,
 })
 
 export type AppRouter = typeof appRouter

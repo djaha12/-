@@ -25,8 +25,32 @@ const ROUTES = [
   { name: 'wizard-3', path: '/new?step=3' },
   { name: 'login', path: '/login' },
   { name: 'login-otp', path: '/login?step=2' },
+  // M4: экраны под сессией клиента (Гульмира из сида)
+  { name: 'contact', path: '/contact/nurlan-abdykadyrov', auth: true },
+  { name: 'messages', path: '/messages', auth: true },
+  { name: 'thread', path: '__FIRST_THREAD__', auth: true },
   { name: 'dev-ui', path: '/dev/ui' },
 ]
+
+/** вход тестовым клиентом сида через OTP-API; возвращает cookie-значение сессии */
+async function loginTestClient(base) {
+  const phone = '+996700010004' // Гульмира А. (сид)
+  const call = async (path, input) => {
+    const res = await fetch(`${base}/api/trpc/${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ json: input }),
+    })
+    return { body: await res.json(), setCookie: res.headers.get('set-cookie') }
+  }
+  const r1 = await call('auth.requestOtp', { phone })
+  const code = r1.body?.result?.data?.json?.devCode
+  if (!code) throw new Error('OTP_DEV_MODE выключен — не могу залогиниться для скриншотов')
+  const r2 = await call('auth.verifyOtp', { phone, code })
+  const m = r2.setCookie?.match(/atelier_session=([^;]+)/)
+  if (!m) throw new Error('Сессия не установилась')
+  return m[1]
+}
 
 const VIEWPORTS = [
   { name: '1440', width: 1440, height: 900 },
@@ -58,13 +82,18 @@ if (!process.env.SHOTS_BASE_URL) {
   process.env.DATABASE_URL = startDb()
   const { execSync } = await import('node:child_process')
   execSync('pnpm --filter @atelier/db seed', { cwd: root, stdio: 'inherit' })
+  // повторные прогоны упираются в наш же rate limit OTP — чистим коды тест-номера
+  execSync(
+    `/usr/lib/postgresql/16/bin/psql -h localhost -p 5433 -U atelier -d atelier -c "DELETE FROM \\"OtpCode\\" WHERE phone = '+996700010004'"`,
+    { stdio: 'ignore' },
+  )
 
   console.log('Запускаю next start…')
   server = spawn('pnpm', ['--filter', '@atelier/web', 'start'], {
     cwd: root,
     stdio: 'ignore',
     detached: true,
-    env: process.env,
+    env: { ...process.env, OTP_DEV_MODE: '1' },
   })
 }
 
@@ -72,16 +101,40 @@ try {
   await waitForServer(BASE)
   mkdirSync(OUT, { recursive: true })
 
+  // сессия и первый тред для авторизованных маршрутов
+  const sessionToken = await loginTestClient(BASE)
+  const messagesHtml = await (
+    await fetch(`${BASE}/messages`, { headers: { cookie: `atelier_session=${sessionToken}` } })
+  ).text()
+  // cuid-треда (не спутать с путями чанков вида /messages/page-*.js)
+  const firstThread = messagesHtml.match(/\/messages\/(c[a-z0-9]{20,})/)?.[1]
+
   const browser = await chromium.launch({ executablePath: findChromium() })
   for (const theme of ['light', 'dark']) {
     const ctx = await browser.newContext({ deviceScaleFactor: 1 })
     await ctx.addInitScript((t) => localStorage.setItem('theme', t), theme)
+    await ctx.addCookies([
+      {
+        name: 'atelier_session',
+        value: sessionToken,
+        url: BASE,
+        httpOnly: true,
+        sameSite: 'Lax',
+      },
+    ])
     for (const vp of VIEWPORTS) {
       const page = await ctx.newPage()
       await page.setViewportSize({ width: vp.width, height: vp.height })
       for (const route of ROUTES) {
+        const routePath =
+          route.path === '__FIRST_THREAD__'
+            ? firstThread
+              ? `/messages/${firstThread}`
+              : null
+            : route.path
+        if (!routePath) continue
         // networkidle хрупок на динамических страницах (префетчи) — load + пауза стабильнее
-        await page.goto(`${BASE}${route.path}`, { waitUntil: 'load', timeout: 60000 })
+        await page.goto(`${BASE}${routePath}`, { waitUntil: 'load', timeout: 60000 })
         await page.waitForTimeout(900) // шрифты, изображения, анимации
 
         // фиксированные бары в fullPage рисуются посреди страницы — прячем их,

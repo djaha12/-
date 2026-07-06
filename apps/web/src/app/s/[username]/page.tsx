@@ -98,8 +98,8 @@ export default async function ProfilePage({
 
             <div className="flex items-center gap-2 pb-1">
               {/* на мобильном primary живёт в нижнем баре — зона большого пальца */}
-              <Button size="lg" className="max-sm:hidden">
-                Отправить заявку
+              <Button asChild size="lg" className="max-sm:hidden">
+                <a href={`/contact/${s.slug}`}>Отправить заявку</a>
               </Button>
               <Button variant="secondary" size="icon" aria-label="Поделиться профилем">
                 <Share2 />
@@ -324,8 +324,8 @@ export default async function ProfilePage({
             <p className="truncate text-[13px] font-semibold">{s.name}</p>
             <p className="truncate text-xs text-muted-foreground">отвечает {s.responseTime}</p>
           </div>
-          <Button size="lg" className="flex-[1.4]">
-            Отправить заявку
+          <Button asChild size="lg" className="flex-[1.4]">
+            <a href={`/contact/${s.slug}`}>Отправить заявку</a>
           </Button>
         </div>
       </div>

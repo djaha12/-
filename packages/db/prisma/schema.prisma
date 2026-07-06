@@ -532,9 +532,11 @@ model Case {
   dealPriceVisibility DealPriceVisibility @default(RANGE)
   /// Дней от публикации до задатка/договора; только SALE/RENT_OUT.
   daysOnMarket        Int?
-  /// Денорм «подтверждено клиентом». Источник истины — связка с завершённым
-  /// Order (confirmedOrderId, M4); до M4 поле заполняет только seed/миграция.
+  /// Денорм «подтверждено клиентом». Источник истины — confirmedOrderId ниже.
   dealConfirmedAt     DateTime?
+  /// Завершённый Order, подтвердивший сделку. @unique = один заказ — один бейдж
+  /// (иначе один заказ накручивал бы все кейсы). Мягкая ссылка, FK не нужен.
+  confirmedOrderId    String?   @unique
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -549,6 +551,7 @@ model Case {
   collectionItems CollectionItem[]
   boostCampaigns  BoostCampaign[]
   briefResponseLinks BriefResponseCase[]
+  threadsAbout    ChatThread[]     @relation("ThreadAboutCase")
 
   // Лента: published-кейсы по свежести; фильтры по городу/категории.
   @@index([dealType, status, publishedAt(sort: Desc)])
@@ -856,6 +859,10 @@ model ChatThread {
   /// Контекст возникновения треда (опционально): бриф.
   briefId String?
   brief   Brief?  @relation(fields: [briefId], references: [id])
+  /// Контекст заявки (M4): кейс, с которого пришёл клиент, и тема первого сообщения.
+  aboutCaseId String?
+  aboutCase   Case?   @relation("ThreadAboutCase", fields: [aboutCaseId], references: [id])
+  subject     String?
   lastMessageAt DateTime?
 
   createdAt DateTime @default(now())

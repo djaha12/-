@@ -308,8 +308,8 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
           <aside className="h-fit rounded-2xl border border-border bg-surface p-6 max-md:hidden lg:sticky lg:top-24">
             <p className="font-display text-xl font-semibold tracking-tight">{cta.title}</p>
             <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{cta.text}</p>
-            <Button size="lg" className="mt-4 w-full">
-              Отправить заявку
+            <Button asChild size="lg" className="mt-4 w-full">
+              <Link href={`/contact/${author.slug}?case=${item!.slug}`}>Отправить заявку</Link>
             </Button>
             <p className="mt-3 text-center text-xs text-muted-foreground">
               Телефон откроется после отклика специалиста
@@ -352,8 +352,8 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
             <p className="truncate text-[13px] font-semibold">{author.name}</p>
             <p className="truncate text-xs text-muted-foreground">отвечает {author.responseTime}</p>
           </div>
-          <Button size="lg" className="flex-[1.4]">
-            Отправить заявку
+          <Button asChild size="lg" className="flex-[1.4]">
+            <Link href={`/contact/${author.slug}?case=${item!.slug}`}>Отправить заявку</Link>
           </Button>
         </div>
       </div>

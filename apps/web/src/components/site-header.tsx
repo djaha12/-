@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Bookmark, MapPin, Menu, Search } from 'lucide-react'
+import { Bookmark, MapPin, Menu, MessageCircle, Search } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { LogoutButton } from '@/components/logout-button'
@@ -67,6 +67,11 @@ export async function SiteHeader() {
           <ThemeToggle />
           {user ? (
             <>
+              <Button asChild variant="ghost" size="icon" aria-label="Сообщения">
+                <Link href="/messages">
+                  <MessageCircle />
+                </Link>
+              </Button>
               <Button
                 asChild
                 variant="ghost"

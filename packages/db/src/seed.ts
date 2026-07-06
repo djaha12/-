@@ -260,6 +260,7 @@ async function main() {
   ]
 
   let clientN = 0
+  const clientIdByName: Record<string, string> = {}
   for (const group of reviewSeed) {
     const specialistUserId = userIdBySlug[group.specialistSlug]!
     for (const r of group.reviews) {
@@ -272,6 +273,7 @@ async function main() {
           displayName: r.author,
         },
       })
+      clientIdByName[r.author] = client.id
       const completedAt = new Date(Date.now() - clientN * 36e5 * 24 * 9)
       const order = await prisma.order.create({
         data: {
@@ -303,6 +305,82 @@ async function main() {
     // подтверждение сделок — только при существующем завершённом заказе у специалиста
     for (const slug of group.confirmCaseSlugs) {
       await prisma.case.update({ where: { slug }, data: { dealConfirmedAt: new Date() } })
+    }
+  }
+
+  // --- демо-диалоги M4: живой чат + заказы в показательных статусах ---
+  const demoThreads: Array<{
+    clientName: string
+    specialistSlug: string
+    subject: string
+    messages: Array<{ fromClient: boolean; text: string }>
+    order?: { title: string; min: number; max: number; state: 'DELIVERED' | 'COMPLETED' }
+  }> = [
+    {
+      clientName: 'Гульмира А.',
+      specialistSlug: 'nurlan-abdykadyrov',
+      subject: 'Продажа трёшки в Джале',
+      messages: [
+        { fromClient: true, text: 'Нурлан, здравствуйте! Продаём трёшку в Джале, 82 м². Хотим успеть до сентября — реально?' },
+        { fromClient: false, text: 'Здравствуйте! Да, реально: похожую в вашем доме закрыли за 31 день. Завтра могу посмотреть квартиру и предложить план по цене.' },
+        { fromClient: true, text: 'Отлично, давайте завтра после 18:00.' },
+        { fromClient: false, text: 'Договорились. Отправляю условия заказом — там зафиксируем ориентир цены и что входит в подготовку.' },
+      ],
+      order: { title: 'Продажа трёшки в Джале, 82 м²', min: 6_200_000, max: 6_450_000, state: 'DELIVERED' },
+    },
+    {
+      clientName: 'Салтанат Э.',
+      specialistSlug: 'aizhan-saparova',
+      subject: 'Спальня в тёплых тонах',
+      messages: [
+        { fromClient: true, text: 'Айжан, добрый день! После лофта хотим доделать спальню — в тех же материалах.' },
+        { fromClient: false, text: 'Добрый! С удовольствием — базу по материалам сохранила. Сдала проект, посмотрите планшет во вложении к заказу.' },
+      ],
+      order: { title: 'Дизайн-проект спальни, 21 м²', min: 350_000, max: 420_000, state: 'COMPLETED' },
+    },
+  ]
+
+  for (const t of demoThreads) {
+    const clientId = clientIdByName[t.clientName]!
+    const specialistId = userIdBySlug[t.specialistSlug]!
+    const base = Date.now() - 36e5 * 30
+    const thread = await prisma.chatThread.create({
+      data: {
+        subject: t.subject,
+        lastMessageAt: new Date(base + t.messages.length * 36e5),
+        participants: { create: [{ userId: clientId }, { userId: specialistId }] },
+      },
+    })
+    for (const [i, m] of t.messages.entries()) {
+      await prisma.message.create({
+        data: {
+          threadId: thread.id,
+          senderId: m.fromClient ? clientId : specialistId,
+          text: m.text,
+          createdAt: new Date(base + i * 36e5),
+        },
+      })
+    }
+    if (t.order) {
+      const agreed = new Date(base + 2 * 36e5)
+      const delivered = new Date(Date.now() - 36e5 * 24)
+      await prisma.order.create({
+        data: {
+          clientId,
+          specialistId,
+          threadId: thread.id,
+          state: t.order.state,
+          title: t.order.title,
+          agreedAmountMin: t.order.min,
+          agreedAmountMax: t.order.max,
+          clientAgreedAt: agreed,
+          specialistAgreedAt: agreed,
+          deliveredAt: delivered,
+          ...(t.order.state === 'DELIVERED'
+            ? { autoConfirmAt: new Date(Date.now() + 6 * 864e5) }
+            : { confirmedAt: delivered, completedAt: delivered }),
+        },
+      })
     }
   }
 
