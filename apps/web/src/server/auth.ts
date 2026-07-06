@@ -1,6 +1,7 @@
 import 'server-only'
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { cookies } from 'next/headers'
+import type { TrustTier } from '@atelier/core'
 import { prisma } from '@atelier/db'
 
 export const SESSION_COOKIE = 'atelier_session'
@@ -41,7 +42,7 @@ export interface SessionUser {
   phone: string | null
   role: string
   specialistSlug: string | null
-  trustTier: string
+  trustTier: TrustTier
   frozenAt: Date | null
 }
 

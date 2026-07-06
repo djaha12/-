@@ -69,7 +69,8 @@ export async function SiteHeader() {
           {user ? (
             <>
               {canModerate(user.role) ? (
-                <Button asChild variant="ghost" size="icon" aria-label="Модерация">
+                // на 390 ряд из 8 контролов душит шапку — щит только с md
+                <Button asChild variant="ghost" size="icon" aria-label="Модерация" className="max-md:hidden">
                   <Link href="/admin">
                     <ShieldCheck />
                   </Link>
@@ -96,7 +97,7 @@ export async function SiteHeader() {
                 className="flex items-center gap-2 rounded-full py-1 pr-3 pl-1 transition-colors hover:bg-surface-muted"
               >
                 <Avatar name={user.displayName ?? user.phone ?? 'Я'} className="size-9 text-xs" />
-                <span className="max-w-28 truncate text-sm font-medium max-sm:hidden">
+                <span className="max-w-36 truncate text-sm font-medium max-sm:hidden">
                   {user.displayName ?? 'Профиль'}
                 </span>
               </Link>

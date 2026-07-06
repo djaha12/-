@@ -1,6 +1,7 @@
 // Смоук M5: премодерация новичков → админка → жалобы → страйки → заморозка.
 // Требует: сервер :3000 с OTP_DEV_MODE=1; модератор из сида (+996700000099).
 // Очистка после: psql -f scripts/smoke-cleanup.sql
+import { createHmac } from 'node:crypto'
 import { execSync } from 'node:child_process'
 
 const BASE = 'http://127.0.0.1:3000'
@@ -69,6 +70,9 @@ const main = async () => {
   console.log('4. постороннему кейс недоступен:', strangerView.status === 404 ? '✓ 404' : strangerView.status)
   const authorView = await (await fetch(`${BASE}/case/${c1.slug}`, { headers: { cookie: specCookie } })).text()
   console.log('5. автор видит кейс с баннером «на проверке»:', authorView.includes('Кейс на проверке') ? '✓' : 'НЕТ')
+  // модератор обязан видеть кейс целиком — премодерация по обложке из очереди не работает
+  const modView = await fetch(`${BASE}/case/${c1.slug}`, { headers: { cookie: modCookie } })
+  console.log('5б. модератор видит pending-кейс:', modView.status === 200 ? '✓ 200' : modView.status)
 
   // админка закрыта для посторонних
   const adminAsClient = await fetch(`${BASE}/admin`, { headers: { cookie: clientCookie } })
@@ -105,27 +109,28 @@ const main = async () => {
   const c5 = await publishCase(specCookie, 'Смоук М5: кейс 5 без очереди')
   console.log('13. пятый кейс публикуется мгновенно:', c5.pending === false ? '✓' : 'СНОВА ОЧЕРЕДЬ')
 
-  // жалобы: гость без аккаунта
+  // жалобы: гость без аккаунта (идентичность — HMAC от IP на сервере)
   const guestReport = await fetch(`${BASE}/api/trpc/reports.create`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ json: { caseSlug: c5.slug, reason: 'contacts', comment: 'Телефон прямо в описании.' } }),
   })
-  const anonCookie = (guestReport.headers.get('set-cookie') ?? '').match(/atelier_anon=[^;]+/)?.[0]
-  console.log('14. гостевая жалоба принята:', guestReport.status === 200 && anonCookie ? '✓ (+anon cookie)' : guestReport.status)
+  const first = await guestReport.json()
+  console.log('14. гостевая жалоба принята:', guestReport.status === 200 && first?.result?.data?.json?.duplicate === false ? '✓' : guestReport.status)
   const dup = await (await fetch(`${BASE}/api/trpc/reports.create`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', cookie: anonCookie },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ json: { caseSlug: c5.slug, reason: 'spam' } }),
   })).json()
-  console.log('15. дубль гостевой жалобы:', dup?.result?.data?.json?.duplicate ? '✓ duplicate' : JSON.stringify(dup).slice(0, 80))
+  console.log('15. дубль гостевой жалобы (тот же IP):', dup?.result?.data?.json?.duplicate ? '✓ duplicate' : JSON.stringify(dup).slice(0, 80))
 
-  // суточный лимит жалоб (синтетика на ДРУГОЙ кейс — иначе дедуп сработает раньше лимита)
-  const anonId = anonCookie.split('=')[1]
+  // суточный лимит жалоб: тот же HMAC(ip), что вычисляет сервер
+  // (Next сам синтезирует x-forwarded-for из сокета → 127.0.0.1)
+  const anonId = createHmac('sha256', 'atelier-anon-dev').update('127.0.0.1').digest('hex').slice(0, 32)
   psql(`INSERT INTO \\"Report\\" (id, \\"reporterAnonId\\", \\"targetType\\", \\"targetId\\", reason, status, \\"createdAt\\", \\"updatedAt\\") SELECT 'smoke-rl-'||g, '${anonId}', 'CASE', '${caseId2}', 'SPAM', 'DISMISSED', now(), now() FROM generate_series(1,9) g`)
   const limited = await fetch(`${BASE}/api/trpc/reports.create`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', cookie: anonCookie },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ json: { caseSlug: c1.slug, reason: 'spam' } }),
   })
   console.log('16. суточный лимит жалоб:', limited.status === 429 ? '✓ 429' : limited.status)

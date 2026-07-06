@@ -91,7 +91,8 @@ export function ReportActions({ reportId }: { reportId: string }) {
       {resolve.isError ? (
         <p className="mb-1.5 text-[13px] text-danger">{resolve.error.message}</p>
       ) : null}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* на 390 — стек на всю ширину (как форма жалобы); терракота экрана — только у «Опубликовать» */}
+      <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         {armed ? (
           <>
             <Button
@@ -110,7 +111,7 @@ export function ReportActions({ reportId }: { reportId: string }) {
           </>
         ) : (
           <>
-            <Button variant="soft" size="sm" className="h-11 sm:h-9" onClick={() => setArmed(true)}>
+            <Button variant="secondary" size="sm" className="h-11 sm:h-9" onClick={() => setArmed(true)}>
               <EyeOff aria-hidden />
               Скрыть контент
             </Button>

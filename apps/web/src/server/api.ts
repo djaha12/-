@@ -1,5 +1,5 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto'
-import { cookies } from 'next/headers'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { headers } from 'next/headers'
 import { initTRPC, TRPCError } from '@trpc/server'
 import superjson from 'superjson'
 import { z } from 'zod'
@@ -17,7 +17,6 @@ import {
   AUTO_CONFIRM_DAYS,
   type OrderActor,
   type OrderStatus,
-  type TrustTier,
 } from '@atelier/core'
 import { prisma, Prisma, type OrderState } from '@atelier/db'
 import { recalcDealStats, recalcReviewAggregate } from './aggregates'
@@ -213,7 +212,10 @@ const casesRouter = t.router({
             reviewAggregate: { create: {} },
           },
         })
-        await prisma.user.update({ where: { id: ctx.user.id }, data: { role: 'SPECIALIST' } })
+        // роль повышаем только клиенту: модератор/админ с кейсом не теряет доступ
+        if (ctx.user.role === 'CLIENT') {
+          await prisma.user.update({ where: { id: ctx.user.id }, data: { role: 'SPECIALIST' } })
+        }
       }
 
       const slugBase = slugify(input.title) || 'case'
@@ -249,7 +251,19 @@ const casesRouter = t.router({
 
       // trust-tiers (решение 03/4): первые кейсы новичка — через премодерацию,
       // доверенные публикуются сразу
-      const pending = needsPremoderation(ctx.user.trustTier as TrustTier)
+      const pending = needsPremoderation(ctx.user.trustTier)
+      if (pending) {
+        // новичок не заливает очередь: сначала проверка первых кейсов
+        const inQueue = await prisma.case.count({
+          where: { authorId: ctx.user.id, status: 'PENDING_REVIEW', deletedAt: null },
+        })
+        if (inQueue >= 5) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'У вас уже 5 кейсов на проверке — дождитесь модерации, потом добавите остальные.',
+          })
+        }
+      }
       const created = await prisma.case.create({
         data: {
           authorId: ctx.user.id,
@@ -382,7 +396,13 @@ const leadsRouter = t.router({
       }
       const aboutCase = input.caseSlug
         ? await prisma.case.findFirst({
-            where: { slug: input.caseSlug, authorId: profile.userId, deletedAt: null },
+            where: {
+              slug: input.caseSlug,
+              authorId: profile.userId,
+              status: 'PUBLISHED',
+              hiddenAt: null,
+              deletedAt: null,
+            },
           })
         : null
 
@@ -485,6 +505,7 @@ const ordersRouter = t.router({
                 dealType: { not: null },
                 dealConfirmedAt: null,
                 status: 'PUBLISHED',
+                hiddenAt: null,
                 deletedAt: null,
               },
               select: { slug: true, title: true },
@@ -665,7 +686,8 @@ const ordersRouter = t.router({
 })
 
 const reviewsRouter = t.router({
-  create: authedProcedure
+  // отзыв — публичный контент: замороженным закрыт (как кейсы/брифы)
+  create: activeProcedure
     .input(
       z.object({
         orderId: z.string(),
@@ -960,8 +982,9 @@ const briefsRouter = t.router({
  * server/data.ts (getModerationQueue).
  * ==========================================================================*/
 
-const ANON_COOKIE = 'atelier_anon'
 const REPORTS_PER_DAY = 10
+/** потолок анонимных жалоб на один кейс в сутки — дальше принимаем молча, в очередь не льём */
+const ANON_REPORTS_PER_TARGET_DAY = 5
 
 const REPORT_REASON = {
   stolen: 'STOLEN_CONTENT',
@@ -984,24 +1007,21 @@ const reportsRouter = t.router({
     )
     .mutation(async ({ ctx, input }) => {
       const target = await prisma.case.findUnique({ where: { slug: input.caseSlug } })
-      if (!target || target.deletedAt || target.status !== 'PUBLISHED') {
+      // скрытый по жалобе кейс повторно не репортится — очередь не замусоривается
+      if (!target || target.deletedAt || target.status !== 'PUBLISHED' || target.hiddenAt) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Кейс не найден.' })
       }
       const reporterId = ctx.user?.id ?? null
       let anonId: string | null = null
       if (!reporterId) {
-        const jar = await cookies()
-        anonId = jar.get(ANON_COOKIE)?.value?.slice(0, 64) ?? null
-        if (!anonId) {
-          anonId = randomBytes(16).toString('hex')
-          jar.set(ANON_COOKIE, anonId, {
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 365 * 864e2,
-            path: '/',
-          })
-        }
+        // идентичность гостя — HMAC от IP: cookie подделывается ротацией, IP — нет.
+        // Соседи по NAT делят лимит — осознанный компромисс MVP (docs/03 §18).
+        const hdrs = await headers()
+        const ip = hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local'
+        anonId = createHmac('sha256', process.env.ANON_REPORT_SALT ?? 'atelier-anon-dev')
+          .update(ip)
+          .digest('hex')
+          .slice(0, 32)
       }
       const sender = reporterId ? { reporterId } : { reporterAnonId: anonId }
       // повторная жалоба того же лица на тот же кейс — не ошибка, а «уже получили»
@@ -1009,15 +1029,28 @@ const reportsRouter = t.router({
         where: { targetType: 'CASE', targetId: target.id, ...sender },
       })
       if (existing) return { ok: true, duplicate: true }
+      const dayAgo = new Date(Date.now() - 864e5)
       // антиспам: суточный потолок на отправителя
       const recent = await prisma.report.count({
-        where: { createdAt: { gte: new Date(Date.now() - 864e5) }, ...sender },
+        where: { createdAt: { gte: dayAgo }, ...sender },
       })
       if (recent >= REPORTS_PER_DAY) {
         throw new TRPCError({
           code: 'TOO_MANY_REQUESTS',
           message: 'Слишком много жалоб за сутки — сделайте паузу.',
         })
+      }
+      // душ анонимных жалоб на один кейс: сверх потолка принимаем молча (не раскрываем порог)
+      if (!reporterId) {
+        const anonOnTarget = await prisma.report.count({
+          where: {
+            targetType: 'CASE',
+            targetId: target.id,
+            reporterId: null,
+            createdAt: { gte: dayAgo },
+          },
+        })
+        if (anonOnTarget >= ANON_REPORTS_PER_TARGET_DAY) return { ok: true, duplicate: false }
       }
       await prisma.report.create({
         data: {
@@ -1047,8 +1080,9 @@ const adminRouter = t.router({
           data: { status: 'PUBLISHED', publishedAt: now },
         })
         if (u.count === 1) {
+          // сужаем по reason: будущие PHASH/REPORTED-разборы не гасятся одобрением премода
           await tx.moderationItem.updateMany({
-            where: { entityType: 'CASE', entityId: target.id, status: 'PENDING' },
+            where: { entityType: 'CASE', entityId: target.id, status: 'PENDING', reason: 'NEW_USER_PREMOD' },
             data: { status: 'APPROVED', resolvedById: ctx.user.id, resolvedAt: now },
           })
           await tx.auditLog.create({
@@ -1063,10 +1097,11 @@ const adminRouter = t.router({
       // повышение автора: после порога одобренных публикуется без очереди
       const author = await prisma.user.findUnique({ where: { id: target.authorId } })
       if (author) {
+        // скрытые за нарушения кейсы в порог доверия не засчитываются
         const published = await prisma.case.count({
-          where: { authorId: author.id, status: 'PUBLISHED', deletedAt: null },
+          where: { authorId: author.id, status: 'PUBLISHED', hiddenAt: null, deletedAt: null },
         })
-        if (shouldPromoteToTrusted(author.trustTier as TrustTier, published)) {
+        if (shouldPromoteToTrusted(author.trustTier, published)) {
           await prisma.user.update({ where: { id: author.id }, data: { trustTier: 'TRUSTED' } })
           await prisma.auditLog.create({
             data: {
@@ -1100,7 +1135,7 @@ const adminRouter = t.router({
         })
         if (u.count === 1) {
           await tx.moderationItem.updateMany({
-            where: { entityType: 'CASE', entityId: input.caseId, status: 'PENDING' },
+            where: { entityType: 'CASE', entityId: input.caseId, status: 'PENDING', reason: 'NEW_USER_PREMOD' },
             data: { status: 'REJECTED', resolvedById: ctx.user.id, resolvedAt: now, resolution: input.reason },
           })
           await tx.auditLog.create({
@@ -1165,39 +1200,52 @@ const adminRouter = t.router({
         // к которому контент относится (для отзыва это НЕ его автор-клиент)
         let offenderId: string
         let recalcSpecialistId: string
+        let hidNow: number
         if (report.targetType === 'CASE') {
           const kase = await tx.case.findUnique({ where: { id: report.targetId } })
           if (!kase) throw new TRPCError({ code: 'NOT_FOUND', message: 'Кейс жалобы не найден.' })
-          await tx.case.updateMany({ where: { id: kase.id, hiddenAt: null }, data: { hiddenAt: now } })
+          const h = await tx.case.updateMany({
+            where: { id: kase.id, hiddenAt: null },
+            data: { hiddenAt: now },
+          })
+          hidNow = h.count
           offenderId = kase.authorId
           recalcSpecialistId = kase.authorId
         } else {
           const review = await tx.review.findUnique({ where: { id: report.targetId } })
           if (!review) throw new TRPCError({ code: 'NOT_FOUND', message: 'Отзыв жалобы не найден.' })
-          await tx.review.updateMany({ where: { id: review.id, hiddenAt: null }, data: { hiddenAt: now } })
+          const h = await tx.review.updateMany({
+            where: { id: review.id, hiddenAt: null },
+            data: { hiddenAt: now },
+          })
+          hidNow = h.count
           offenderId = review.authorId
           recalcSpecialistId = review.specialistId
         }
-        await tx.userStrike.create({
-          data: { userId: offenderId, reasonCode: report.reason, comment: report.comment },
-        })
+        // одно нарушение = один страйк: вторая жалоба на УЖЕ скрытый контент
+        // резолвится без страйка (иначе 3 жалобы на один кейс = заморозка)
+        if (hidNow === 1) {
+          await tx.userStrike.create({
+            data: { userId: offenderId, reasonCode: report.reason, comment: report.comment },
+          })
+          // 3 страйка = заморозка (инвариант из core)
+          const strikes = await tx.userStrike.count({ where: { userId: offenderId } })
+          if (shouldFreeze(strikes)) {
+            await tx.user.updateMany({ where: { id: offenderId, frozenAt: null }, data: { frozenAt: now } })
+            await tx.auditLog.create({
+              data: { actorId: ctx.user.id, action: 'user.freeze', entityType: 'USER', entityId: offenderId, payload: { strikes } },
+            })
+          }
+        }
         await tx.auditLog.create({
           data: {
             actorId: ctx.user.id,
             action: 'report.hide_content',
             entityType: report.targetType,
             entityId: report.targetId,
-            payload: { reason: report.reason },
+            payload: { reason: report.reason, alreadyHidden: hidNow === 0 },
           },
         })
-        // 3 страйка = заморозка (инвариант из core)
-        const strikes = await tx.userStrike.count({ where: { userId: offenderId } })
-        if (shouldFreeze(strikes)) {
-          await tx.user.updateMany({ where: { id: offenderId, frozenAt: null }, data: { frozenAt: now } })
-          await tx.auditLog.create({
-            data: { actorId: ctx.user.id, action: 'user.freeze', entityType: 'USER', entityId: offenderId, payload: { strikes } },
-          })
-        }
         return { recalcSpecialistId }
       })
       if (!result) {

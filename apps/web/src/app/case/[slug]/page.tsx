@@ -22,8 +22,8 @@ export const dynamic = 'force-dynamic'
 export default async function CasePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const viewer = await getSessionUser()
-  // автор видит и неопубликованный свой кейс (баннер статуса ниже)
-  const data = await getCase(slug, viewer?.id)
+  // автор и модератор видят и неопубликованный кейс (баннер статуса ниже)
+  const data = await getCase(slug, viewer)
   if (!data) notFound()
 
   const { item: rawItem, author, gallery, beforeAfter, review, story, moderation } = data
@@ -132,7 +132,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
               <>
                 <span className="font-semibold text-foreground">Кейс отклонён модерацией.</span>{' '}
                 {moderation.reason ? `Причина: ${moderation.reason}` : 'Причина не указана.'}{' '}
-                Исправьте и опубликуйте заново — мы посмотрим ещё раз.
+                Создайте кейс заново с учётом причины — новый пройдёт проверку.
               </>
             ) : (
               <>
@@ -356,8 +356,15 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
           </p>
         </section>
 
+        {/* жалоба — тихо в подвале контента кейса (до чужих карточек); работает и для гостей */}
+        {!moderation ? (
+          <div className="mt-12">
+            <ReportButton caseSlug={item!.slug} />
+          </div>
+        ) : null}
+
         {related.length > 0 ? (
-          <section className="mt-14">
+          <section className="mt-12">
             <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
               {deal ? 'Другие сделки' : 'Похожие проекты'}
             </h2>
@@ -368,13 +375,6 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
               ))}
             </div>
           </section>
-        ) : null}
-
-        {/* жалоба — тихо в подвале контента; работает и для гостей */}
-        {!moderation ? (
-          <div className="mt-12">
-            <ReportButton caseSlug={item!.slug} />
-          </div>
         ) : null}
       </main>
       <SiteFooter className="max-md:pb-24" />

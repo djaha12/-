@@ -51,7 +51,7 @@ export default async function AdminPage() {
               {pendingCases.map((c) => (
                 <li key={c.id} className="rounded-2xl border border-border bg-surface p-4 shadow-card sm:p-5">
                   <div className="flex gap-4">
-                    <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-lg bg-surface-muted">
+                    <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl bg-surface-muted">
                       {c.image.src ? (
                         <Image
                           src={c.image.src}
@@ -66,17 +66,21 @@ export default async function AdminPage() {
                       ) : null}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <Link href={`/case/${c.slug}`} className="truncate font-semibold hover:underline">
+                      <div className="flex items-start justify-between gap-3">
+                        {/* модератор обязан открыть кейс перед решением — ссылка видима и на таче */}
+                        <Link
+                          href={`/case/${c.slug}`}
+                          className="line-clamp-2 min-w-0 font-semibold underline decoration-border-strong underline-offset-4 hover:decoration-current"
+                        >
                           {c.title}
                         </Link>
-                        <span className="shrink-0 text-xs text-muted-foreground">
+                        <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">
                           {timeAgo(c.createdAt)}
                         </span>
                       </div>
                       <p className="mt-1 text-[13px] text-muted-foreground">
                         {c.authorName}
-                        <Badge variant="accent" size="sm" className="ml-2 align-middle">
+                        <Badge variant="neutral" size="sm" className="ml-2 align-middle">
                           новичок
                         </Badge>
                       </p>
@@ -121,7 +125,10 @@ export default async function AdminPage() {
                   {r.target ? (
                     <p className="mt-2.5 text-sm">
                       {r.target.href ? (
-                        <Link href={r.target.href} className="font-medium hover:underline">
+                        <Link
+                          href={r.target.href}
+                          className="font-medium underline decoration-border-strong underline-offset-4 hover:decoration-current"
+                        >
                           {r.target.title}
                         </Link>
                       ) : (

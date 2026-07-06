@@ -55,7 +55,13 @@ export async function recalcDealStats(specialistUserId: string) {
     select: { daysOnMarket: true },
   })
   const dealCases = await prisma.case.count({
-    where: { authorId: specialistUserId, dealType: { not: null }, status: 'PUBLISHED', deletedAt: null },
+    where: {
+      authorId: specialistUserId,
+      dealType: { not: null },
+      status: 'PUBLISHED',
+      hiddenAt: null,
+      deletedAt: null,
+    },
   })
   const days = confirmed
     .map((c) => c.daysOnMarket)

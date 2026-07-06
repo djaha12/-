@@ -1,5 +1,5 @@
 import 'server-only'
-import { hideContacts, quotaMonthStart, PLAN_LIMITS } from '@atelier/core'
+import { canModerate, hideContacts, quotaMonthStart, PLAN_LIMITS } from '@atelier/core'
 import { prisma, type Prisma, type Specialization } from '@atelier/db'
 import type { CaseItem, DealInfo, DealType, MockImage, Review, Specialist } from '@/mock/data'
 
@@ -298,7 +298,7 @@ export interface CaseModerationNote {
 
 export async function getCase(
   slug: string,
-  viewerId?: string | null,
+  viewer?: { id: string; role: string } | null,
 ): Promise<
   | {
       item: CaseItem
@@ -322,13 +322,15 @@ export async function getCase(
     },
   })
   if (!row || row.deletedAt) return null
-  // публично виден только опубликованный и не скрытый; автору — любой его кейс
-  const isAuthor = viewerId != null && row.authorId === viewerId
+  // публично виден только опубликованный и не скрытый; автору — любой его кейс;
+  // модератору — тоже: премодерация «вслепую» по обложке из очереди невозможна
+  const isAuthor = viewer != null && row.authorId === viewer.id
+  const isModerator = viewer != null && canModerate(viewer.role)
   const publiclyVisible = row.status === 'PUBLISHED' && !row.hiddenAt
-  if (!publiclyVisible && !isAuthor) return null
+  if (!publiclyVisible && !isAuthor && !isModerator) return null
 
   let moderation: CaseModerationNote | null = null
-  if (isAuthor && !publiclyVisible) {
+  if (!publiclyVisible && (isAuthor || isModerator)) {
     const state = row.hiddenAt
       ? ('HIDDEN' as const)
       : row.status === 'REJECTED'
