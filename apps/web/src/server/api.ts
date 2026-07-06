@@ -3,6 +3,7 @@ import { initTRPC, TRPCError } from '@trpc/server'
 import superjson from 'superjson'
 import { z } from 'zod'
 import {
+  canRespondToBrief,
   canSubmitReview,
   canTransitionOrder,
   derivePriceRange,
@@ -12,6 +13,7 @@ import {
   type OrderStatus,
 } from '@atelier/core'
 import { prisma, Prisma, type OrderState } from '@atelier/db'
+import { recalcDealStats, recalcReviewAggregate } from './aggregates'
 import {
   createSession,
   destroySession,
@@ -326,78 +328,6 @@ async function assertParticipant(threadId: string, userId: string) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Диалог не найден.' })
   }
   return thread
-}
-
-/** Честный транзакционный пересчёт витрины отзывов специалиста */
-async function recalcReviewAggregate(specialistUserId: string) {
-  const profile = await prisma.specialistProfile.findUnique({ where: { userId: specialistUserId } })
-  if (!profile) return
-  const reviews = await prisma.review.findMany({
-    where: { specialistId: specialistUserId, hiddenAt: null, deletedAt: null },
-    select: { scoreQuality: true, scoreTimeline: true, scoreCommunication: true, scoreBudget: true },
-  })
-  const n = reviews.length
-  const avg = (pick: (r: (typeof reviews)[number]) => number) =>
-    n ? reviews.reduce((s, r) => s + pick(r), 0) / n : 0
-  const q = avg((r) => r.scoreQuality)
-  const tl = avg((r) => r.scoreTimeline)
-  const c = avg((r) => r.scoreCommunication)
-  const b = avg((r) => r.scoreBudget)
-  const completedOrders = await prisma.order.count({
-    where: { specialistId: specialistUserId, state: 'COMPLETED' },
-  })
-  await prisma.reviewAggregate.update({
-    where: { specialistProfileId: profile.id },
-    data: {
-      reviewsCount: n,
-      avgQuality: q,
-      avgTimeline: tl,
-      avgCommunication: c,
-      avgBudget: b,
-      avgOverall: n ? (q + tl + c + b) / 4 : 0,
-      completedOrdersCount: completedOrders,
-      recalculatedAt: new Date(),
-    },
-  })
-}
-
-/** Пересчёт риелторской витрины после привязки заказа к кейсу */
-async function recalcDealStats(specialistUserId: string) {
-  const profile = await prisma.specialistProfile.findUnique({ where: { userId: specialistUserId } })
-  if (!profile) return
-  const confirmed = await prisma.case.findMany({
-    where: {
-      authorId: specialistUserId,
-      dealConfirmedAt: { not: null },
-      status: 'PUBLISHED',
-      hiddenAt: null,
-      deletedAt: null,
-    },
-    select: { daysOnMarket: true },
-  })
-  const dealCases = await prisma.case.count({
-    where: { authorId: specialistUserId, dealType: { not: null }, status: 'PUBLISHED', deletedAt: null },
-  })
-  const days = confirmed
-    .map((c) => c.daysOnMarket)
-    .filter((d): d is number => d != null)
-    .sort((a, b) => a - b)
-  // порог честности медианы — 5 подтверждённых значений (docs/05 §5.4);
-  // чётное n — среднее двух центральных (иначе смещение против риелтора)
-  const median =
-    days.length >= 5
-      ? days.length % 2
-        ? days[(days.length - 1) / 2]!
-        : Math.round((days[days.length / 2 - 1]! + days[days.length / 2]!) / 2)
-      : null
-  await prisma.reviewAggregate.update({
-    where: { specialistProfileId: profile.id },
-    data: {
-      confirmedDealsCount: confirmed.length,
-      dealCasesCount: dealCases,
-      medianDaysOnMarket: median,
-    },
-  })
 }
 
 const leadsRouter = t.router({
@@ -768,6 +698,230 @@ const reviewsRouter = t.router({
     }),
 })
 
+/* ============================================================================
+ * M4.5: брифы — вторая воронка. Клиент публикует задачу, специалисты
+ * откликаются (лимит Free — из core), клиент открывает чат с выбранным.
+ * Чтение — server/data.ts (getOpenBriefs/getMyBriefs/getBriefView).
+ * ==========================================================================*/
+
+const BRIEF_OBJECT = {
+  apartment: 'APARTMENT',
+  newBuild: 'NEW_BUILD',
+  house: 'HOUSE',
+  commercial: 'COMMERCIAL',
+  land: 'LAND',
+  other: 'OTHER',
+} as const
+
+const MAX_OPEN_BRIEFS = 10
+
+const briefsRouter = t.router({
+  create: authedProcedure
+    .input(
+      z
+        .object({
+          title: z.string().trim().min(5, 'Заголовок — от 5 символов').max(120),
+          description: z
+            .string()
+            .trim()
+            .min(20, 'Опишите задачу подробнее — специалистам нужен контекст.')
+            .max(2000),
+          objectType: z
+            .enum(['apartment', 'newBuild', 'house', 'commercial', 'land', 'other'])
+            .default('apartment'),
+          districtName: z.string().optional(),
+          budgetMin: z.number().int().positive().optional(),
+          budgetMax: z.number().int().positive().optional(),
+        })
+        .refine((v) => !v.budgetMin || !v.budgetMax || v.budgetMin <= v.budgetMax, {
+          message: 'Нижняя граница бюджета не может быть больше верхней.',
+        }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // мягкий стоп спама: старые задачи закрываются, а не копятся
+      const openCount = await prisma.brief.count({
+        where: { clientId: ctx.user.id, status: 'OPEN', deletedAt: null },
+      })
+      if (openCount >= MAX_OPEN_BRIEFS) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `У вас уже ${MAX_OPEN_BRIEFS} открытых брифов — закройте неактуальные.`,
+        })
+      }
+      const bishkek = await prisma.city.findUnique({ where: { slug: 'bishkek' } })
+      const district = input.districtName
+        ? await prisma.district.findFirst({ where: { nameRu: input.districtName } })
+        : null
+      const brief = await prisma.brief.create({
+        data: {
+          clientId: ctx.user.id,
+          status: 'OPEN',
+          title: input.title,
+          description: input.description,
+          objectType: BRIEF_OBJECT[input.objectType],
+          cityId: bishkek?.id ?? null,
+          districtId: district?.id ?? null,
+          budgetMin: input.budgetMin ?? null,
+          budgetMax: input.budgetMax ?? null,
+        },
+      })
+      return { id: brief.id }
+    }),
+
+  respond: authedProcedure
+    .input(
+      z.object({
+        briefId: z.string(),
+        message: z
+          .string()
+          .trim()
+          .min(10, 'Пара предложений о том, как вы решите задачу.')
+          .max(2000),
+        priceEstimate: z.number().int().positive().optional(),
+        caseSlugs: z.array(z.string()).max(3).default([]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const me = await prisma.specialistProfile.findUnique({ where: { userId: ctx.user.id } })
+      if (!me) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Откликаются специалисты. Опубликуйте первый кейс — профиль появится сам.',
+        })
+      }
+      const brief = await prisma.brief.findUnique({ where: { id: input.briefId } })
+      if (!brief || brief.deletedAt) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Бриф не найден.' })
+      }
+      if (brief.clientId === ctx.user.id) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Нельзя откликнуться на собственный бриф.' })
+      }
+      if (brief.status !== 'OPEN') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Бриф уже закрыт.' })
+      }
+      // лимит тарифа — инвариант из core; тариф пока один (Free), PRO придёт с биллингом
+      const monthStart = new Date()
+      monthStart.setDate(1)
+      monthStart.setHours(0, 0, 0, 0)
+      const used = await prisma.briefResponse.count({
+        where: { specialistId: ctx.user.id, createdAt: { gte: monthStart } },
+      })
+      const gate = canRespondToBrief('FREE', used)
+      if (!gate.allowed) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: gate.reason })
+      }
+      // кейсы-аргументы: только свои опубликованные
+      const uniqueSlugs = [...new Set(input.caseSlugs)]
+      const cases = uniqueSlugs.length
+        ? await prisma.case.findMany({
+            where: {
+              slug: { in: uniqueSlugs },
+              authorId: ctx.user.id,
+              status: 'PUBLISHED',
+              hiddenAt: null,
+              deletedAt: null,
+            },
+          })
+        : []
+      if (cases.length !== uniqueSlugs.length) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'К отклику можно приложить только свои опубликованные кейсы.',
+        })
+      }
+      try {
+        const created = await prisma.briefResponse.create({
+          data: {
+            briefId: brief.id,
+            specialistId: ctx.user.id,
+            message: input.message,
+            priceEstimate: input.priceEstimate ?? null,
+            cases: {
+              create: uniqueSlugs.map((slug, i) => ({
+                caseId: cases.find((c) => c.slug === slug)!.id,
+                sortOrder: i,
+              })),
+            },
+          },
+        })
+        return { id: created.id }
+      } catch (e) {
+        // unique(briefId, specialistId): двойной клик или второй отклик
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Вы уже откликнулись на этот бриф.' })
+        }
+        throw e
+      }
+    }),
+
+  /** Клиент открывает чат по отклику. Идемпотентен: повторный клик не шлёт дубль. */
+  accept: authedProcedure
+    .input(z.object({ responseId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const response = await prisma.briefResponse.findUnique({
+        where: { id: input.responseId },
+        include: { brief: true },
+      })
+      if (!response || response.brief.clientId !== ctx.user.id) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Отклик не найден.' })
+      }
+      // тот же принцип, что в заявках: один живой диалог на пару
+      const existing = await prisma.chatThread.findFirst({
+        where: {
+          AND: [
+            { participants: { some: { userId: ctx.user.id } } },
+            { participants: { some: { userId: response.specialistId } } },
+          ],
+        },
+        orderBy: { lastMessageAt: 'desc' },
+      })
+      const thread =
+        existing ??
+        (await prisma.chatThread.create({
+          data: {
+            subject: response.brief.title,
+            briefId: response.briefId,
+            participants: {
+              create: [{ userId: ctx.user.id }, { userId: response.specialistId }],
+            },
+          },
+        }))
+      if (response.status !== 'ACCEPTED') {
+        await prisma.$transaction([
+          prisma.briefResponse.update({
+            where: { id: response.id },
+            data: { status: 'ACCEPTED' },
+          }),
+          prisma.message.create({
+            data: {
+              threadId: thread.id,
+              senderId: ctx.user.id,
+              text: `По брифу «${response.brief.title}»: ваш отклик заинтересовал — давайте обсудим детали.`,
+            },
+          }),
+          prisma.chatThread.update({
+            where: { id: thread.id },
+            data: { lastMessageAt: new Date() },
+          }),
+        ])
+      }
+      return { threadId: thread.id }
+    }),
+
+  close: authedProcedure
+    .input(z.object({ briefId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const updated = await prisma.brief.updateMany({
+        where: { id: input.briefId, clientId: ctx.user.id, status: 'OPEN' },
+        data: { status: 'CLOSED' },
+      })
+      if (updated.count === 0) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Бриф не найден или уже закрыт.' })
+      }
+      return { ok: true }
+    }),
+})
+
 export const appRouter = t.router({
   auth: authRouter,
   cases: casesRouter,
@@ -776,6 +930,7 @@ export const appRouter = t.router({
   chat: chatRouter,
   orders: ordersRouter,
   reviews: reviewsRouter,
+  briefs: briefsRouter,
 })
 
 export type AppRouter = typeof appRouter

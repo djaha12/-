@@ -9,7 +9,7 @@ import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { getSessionUser } from '@/server/auth'
 import { getThreads } from '@/server/data'
-import { cn } from '@/lib/utils'
+import { cn, timeAgo } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,16 +23,6 @@ const ORDER_STATE_BADGE: Record<string, { label: string; variant: 'neutral' | 'a
   COMPLETED: { label: 'Заказ завершён', variant: 'success' },
   CANCELLED: { label: 'Заказ отменён', variant: 'neutral' },
   DISPUTED: { label: 'Заказ: спор', variant: 'neutral' },
-}
-
-function timeAgo(d: Date | null): string {
-  if (!d) return ''
-  const mins = Math.floor((Date.now() - d.getTime()) / 6e4)
-  if (mins < 1) return 'только что'
-  if (mins < 60) return `${mins} мин`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours} ч`
-  return `${Math.floor(hours / 24)} дн`
 }
 
 export default async function MessagesPage() {

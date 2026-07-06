@@ -378,6 +378,7 @@ model District {
   specialistProfiles  SpecialistProfile[]
   cases               Case[]
   specialistDistricts SpecialistDistrict[]
+  briefs              Brief[]
 
   @@unique([cityId, slug])
 }
@@ -777,6 +778,9 @@ model Brief {
   specialization Specialization?
   cityId      String?
   city        City?           @relation(fields: [cityId], references: [id])
+  /// Район — ключевой контекст риелторского брифа (M4.5).
+  districtId  String?
+  district    District?       @relation(fields: [districtId], references: [id])
   areaM2      Decimal?        @db.Decimal(9, 2)
   /// Бюджет вилкой, СОМЫ (целые KGS).
   budgetMin   Int?

@@ -1,4 +1,5 @@
 import 'server-only'
+import { PLAN_LIMITS } from '@atelier/core'
 import { prisma, type Prisma, type Specialization } from '@atelier/db'
 import type { CaseItem, DealInfo, DealType, MockImage, Review, Specialist } from '@/mock/data'
 
@@ -476,4 +477,225 @@ export async function getSavedCases(viewerId: string): Promise<CaseItem[]> {
     orderBy: { createdAt: 'desc' },
   })
   return rows.map((s) => ({ ...toCaseItem(s.case as CaseRow), savedByMe: true }))
+}
+
+/* ============================================================================
+ * M4.5: брифы — чтение. Лента открытых задач для специалистов,
+ * «мои брифы» для клиента, ролевая страница брифа.
+ * ==========================================================================*/
+
+export const BRIEF_OBJECT_LABEL: Record<string, string> = {
+  APARTMENT: 'Квартира',
+  NEW_BUILD: 'Новостройка',
+  HOUSE: 'Дом',
+  COMMERCIAL: 'Коммерция',
+  OFFICE: 'Офис',
+  LAND: 'Участок',
+  OTHER: 'Другое',
+}
+
+export interface BriefListItem {
+  id: string
+  title: string
+  description: string
+  objectTypeLabel: string
+  districtName: string | null
+  budgetMin: number | null
+  budgetMax: number | null
+  status: string
+  createdAt: Date
+  responsesCount: number
+  /** для ленты специалиста: я уже откликнулся */
+  iResponded: boolean
+}
+
+function toBriefListItem(
+  row: Prisma.BriefGetPayload<{
+    include: { district: true; _count: { select: { responses: true } } }
+  }> & { responses?: Array<{ id: string }> },
+): BriefListItem {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description ?? '',
+    objectTypeLabel: BRIEF_OBJECT_LABEL[row.objectType] ?? 'Другое',
+    districtName: row.district?.nameRu ?? null,
+    budgetMin: row.budgetMin,
+    budgetMax: row.budgetMax,
+    status: row.status,
+    createdAt: row.createdAt,
+    responsesCount: row._count.responses,
+    iResponded: (row.responses?.length ?? 0) > 0,
+  }
+}
+
+/** Лента открытых брифов для специалиста */
+export async function getOpenBriefs(viewerId: string): Promise<BriefListItem[]> {
+  const rows = await prisma.brief.findMany({
+    where: { status: 'OPEN', deletedAt: null, clientId: { not: viewerId } },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    include: {
+      district: true,
+      _count: { select: { responses: true } },
+      responses: { where: { specialistId: viewerId }, select: { id: true } },
+    },
+  })
+  return rows.map(toBriefListItem)
+}
+
+/** Брифы клиента (владельца) */
+export async function getMyBriefs(viewerId: string): Promise<BriefListItem[]> {
+  const rows = await prisma.brief.findMany({
+    where: { clientId: viewerId, deletedAt: null },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    include: { district: true, _count: { select: { responses: true } } },
+  })
+  return rows.map(toBriefListItem)
+}
+
+export interface BriefResponseItem {
+  id: string
+  status: string
+  message: string
+  priceEstimate: number | null
+  createdAt: Date
+  specialist: {
+    name: string
+    slug: string | null
+    profession: string
+    verified: boolean
+    rating: number
+    reviewsCount: number
+  }
+  cases: Array<{ slug: string; title: string; image: MockImage }>
+}
+
+export type BriefView =
+  | { role: 'owner'; brief: BriefListItem; responses: BriefResponseItem[] }
+  | {
+      role: 'specialist'
+      brief: BriefListItem & { clientName: string }
+      myResponse: BriefResponseItem | null
+      /** мои опубликованные кейсы для формы отклика */
+      myCases: Array<{ slug: string; title: string; image: MockImage }>
+      quota: { used: number; limit: number }
+    }
+
+const responseInclude = {
+  specialist: { include: { specialistProfile: { include: { reviewAggregate: true } } } },
+  cases: {
+    orderBy: { sortOrder: 'asc' },
+    include: { case: { include: { coverImage: true } } },
+  },
+} satisfies Prisma.BriefResponseInclude
+
+function toResponseItem(
+  row: Prisma.BriefResponseGetPayload<{ include: typeof responseInclude }>,
+): BriefResponseItem {
+  const profile = row.specialist.specialistProfile
+  const agg = profile?.reviewAggregate
+  return {
+    id: row.id,
+    status: row.status,
+    message: row.message,
+    priceEstimate: row.priceEstimate,
+    createdAt: row.createdAt,
+    specialist: {
+      name: row.specialist.displayName ?? 'Специалист',
+      slug: profile?.slug ?? null,
+      profession: SPECIALIZATION_LABEL[profile?.specialization ?? ''] ?? 'Специалист',
+      verified: profile?.identityVerifiedAt != null,
+      rating: agg ? Number(agg.avgOverall) : 0,
+      reviewsCount: agg?.reviewsCount ?? 0,
+    },
+    cases: row.cases
+      .filter((c) => c.case.status === 'PUBLISHED' && !c.case.deletedAt && !c.case.hiddenAt)
+      .map((c) => ({
+        slug: c.case.slug,
+        title: c.case.title,
+        image: c.case.coverImage
+          ? toImage(c.case.coverImage)
+          : { src: '', width: 4, height: 3, blurDataURL: '' },
+      })),
+  }
+}
+
+/**
+ * Ролевая страница брифа: владелец видит отклики (и помечает их просмотренными),
+ * специалист — задачу и свой отклик/форму. Посторонним клиентам бриф не показывается.
+ */
+export async function getBriefView(briefId: string, viewerId: string): Promise<BriefView | null> {
+  const row = await prisma.brief.findUnique({
+    where: { id: briefId },
+    include: {
+      district: true,
+      client: true,
+      _count: { select: { responses: true } },
+    },
+  })
+  if (!row || row.deletedAt) return null
+
+  if (row.clientId === viewerId) {
+    // честный сигнал специалисту: клиент открыл отклики → «просмотрен»
+    const now = new Date()
+    await prisma.$transaction([
+      prisma.briefResponse.updateMany({
+        where: { briefId, viewedAt: null },
+        data: { viewedAt: now },
+      }),
+      prisma.briefResponse.updateMany({
+        where: { briefId, status: 'SENT' },
+        data: { status: 'VIEWED' },
+      }),
+    ])
+    const responses = await prisma.briefResponse.findMany({
+      where: { briefId },
+      orderBy: { createdAt: 'asc' },
+      include: responseInclude,
+    })
+    return {
+      role: 'owner',
+      brief: toBriefListItem(row),
+      responses: responses.map(toResponseItem),
+    }
+  }
+
+  // не владелец: бриф видят только специалисты
+  const myProfile = await prisma.specialistProfile.findUnique({ where: { userId: viewerId } })
+  if (!myProfile) return null
+
+  const [myResponseRow, myCases, monthUsed] = await Promise.all([
+    prisma.briefResponse.findUnique({
+      where: { briefId_specialistId: { briefId, specialistId: viewerId } },
+      include: responseInclude,
+    }),
+    prisma.case.findMany({
+      where: { authorId: viewerId, status: 'PUBLISHED', hiddenAt: null, deletedAt: null },
+      include: { coverImage: true },
+      orderBy: { publishedAt: 'desc' },
+      take: 12,
+    }),
+    prisma.briefResponse.count({
+      where: {
+        specialistId: viewerId,
+        createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
+      },
+    }),
+  ])
+
+  return {
+    role: 'specialist',
+    brief: { ...toBriefListItem(row), clientName: row.client.displayName ?? 'Клиент' },
+    myResponse: myResponseRow ? toResponseItem(myResponseRow) : null,
+    myCases: myCases.map((c) => ({
+      slug: c.slug,
+      title: c.title,
+      image: c.coverImage
+        ? toImage(c.coverImage)
+        : { src: '', width: 4, height: 3, blurDataURL: '' },
+    })),
+    quota: { used: monthUsed, limit: PLAN_LIMITS.FREE.maxBriefResponsesPerMonth },
+  }
 }

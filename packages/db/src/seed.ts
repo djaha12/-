@@ -407,7 +407,129 @@ async function main() {
   console.log('✓ Seed:', counts)
 }
 
+/** M4.5: демо-брифы. Top-up — досеивает и уже насеянную БД (main() пропустился). */
+async function seedBriefs() {
+  if ((await prisma.brief.count()) > 0) return
+  const gulmira = await prisma.user.findFirst({
+    where: { displayName: 'Гульмира А.', role: 'CLIENT' },
+  })
+  const nurlan = await prisma.specialistProfile.findUnique({
+    where: { slug: 'nurlan-abdykadyrov' },
+  })
+  const maria = await prisma.specialistProfile.findUnique({ where: { slug: 'maria-kim' } })
+  if (!gulmira || !nurlan || !maria) {
+    console.log('Брифы: демо-пользователи не найдены — пропускаю')
+    return
+  }
+  const bishkek = await prisma.city.findUnique({ where: { slug: 'bishkek' } })
+  const alamedin = await prisma.district.findFirst({ where: { nameRu: 'Аламедин-1' } })
+  const dzhal = await prisma.district.findFirst({ where: { nameRu: 'Джал' } })
+  const otherClients = await prisma.user.findMany({
+    where: { role: 'CLIENT', id: { not: gulmira.id } },
+    orderBy: { phone: 'asc' },
+    take: 2,
+  })
+
+  const day = 864e5
+  // №1 — витринный бриф Гульмиры: отклики риелтора (с кейсами) и хоумстейджера
+  const b1 = await prisma.brief.create({
+    data: {
+      clientId: gulmira.id,
+      status: 'OPEN',
+      title: 'Продать двушку 58 м² в Аламедине-1',
+      description:
+        '4 этаж из 9, дом 2012 года, состояние жилое. Документы готовы, никто не прописан. Хочу продать за 2–3 месяца: нужна честная оценка, подготовка к показам и торг.',
+      objectType: 'APARTMENT',
+      cityId: bishkek?.id,
+      districtId: alamedin?.id ?? null,
+      budgetMin: 4_200_000,
+      budgetMax: 4_600_000,
+      createdAt: new Date(Date.now() - day),
+    },
+  })
+  const nurlanCases = await prisma.case.findMany({
+    where: { slug: { in: ['dvushka-toktogula', 'treshka-dzhal-remont'] } },
+    orderBy: { slug: 'asc' },
+  })
+  await prisma.briefResponse.create({
+    data: {
+      briefId: b1.id,
+      specialistId: nurlan.userId,
+      message:
+        'Здравствуйте! Продал 3 похожие квартиры в Аламедине и Джале за последние полгода, две из них — за 3–4 недели. Начну с оценки по свежим сделкам вашего квадрата, подготовку к съёмке сделаем за один день. Прикладываю близкие кейсы.',
+      priceEstimate: 4_450_000,
+      createdAt: new Date(Date.now() - day + 3 * 36e5),
+      cases: { create: nurlanCases.map((c, i) => ({ caseId: c.id, sortOrder: i })) },
+    },
+  })
+  const mariaCase = await prisma.case.findFirst({
+    where: { authorId: maria.userId, status: 'PUBLISHED', deletedAt: null },
+    orderBy: { publishedAt: 'desc' },
+  })
+  await prisma.briefResponse.create({
+    data: {
+      briefId: b1.id,
+      specialistId: maria.userId,
+      message:
+        'Добрый день! Я хоумстейджер: подготовка квартиры перед продажей ускоряет сделку и поднимает цену — лёгкая перестановка, свет, профессиональная съёмка. Работаю в связке с риелторами, занимает один день.',
+      createdAt: new Date(Date.now() - day + 5 * 36e5),
+      ...(mariaCase ? { cases: { create: [{ caseId: mariaCase.id, sortOrder: 0 }] } } : {}),
+    },
+  })
+
+  // №2 — аренда, откликов пока нет
+  if (otherClients[0]) {
+    await prisma.brief.create({
+      data: {
+        clientId: otherClients[0].id,
+        status: 'OPEN',
+        title: 'Сдать студию в Джале на долгий срок',
+        description:
+          'Студия 34 м² с ремонтом и мебелью. Нужен арендатор на год и дольше, помощь с договором и проверкой. Сама в другом городе — показы полностью на специалисте.',
+        objectType: 'APARTMENT',
+        cityId: bishkek?.id,
+        districtId: dzhal?.id ?? null,
+        createdAt: new Date(Date.now() - 2 * day),
+      },
+    })
+  }
+
+  // №3 — самый свежий, без откликов: у специалиста на странице — форма отклика
+  if (otherClients[1]) {
+    await prisma.brief.create({
+      data: {
+        clientId: otherClients[1].id,
+        status: 'OPEN',
+        title: 'Помочь купить однушку в новостройке до 3 600 000 сом',
+        description:
+          'Рассматриваю Магистраль и юг центра, сдача до конца года. Нужна проверка застройщика, помощь с выбором планировки и сопровождение сделки.',
+        objectType: 'NEW_BUILD',
+        cityId: bishkek?.id,
+        budgetMin: 3_200_000,
+        budgetMax: 3_600_000,
+        createdAt: new Date(Date.now() - 2 * 36e5),
+      },
+    })
+  }
+
+  // №4 — закрытый бриф Гульмиры: бейдж «Закрыт» в списке «мои брифы»
+  await prisma.brief.create({
+    data: {
+      clientId: gulmira.id,
+      status: 'CLOSED',
+      title: 'Оценить трёшку перед продажей',
+      description: 'Нужна была быстрая оценка для семейного решения — вопрос закрыт, спасибо.',
+      objectType: 'APARTMENT',
+      cityId: bishkek?.id,
+      createdAt: new Date(Date.now() - 6 * day),
+    },
+  })
+
+  console.log('✓ Брифы:', await prisma.brief.count(), '· откликов:', await prisma.briefResponse.count())
+}
+
 main()
+  .then(seedBriefs)
   .catch((e) => {
     console.error(e)
     process.exit(1)

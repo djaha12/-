@@ -12,6 +12,9 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const OUT = path.join(root, 'screenshots')
 const BASE = process.env.SHOTS_BASE_URL ?? 'http://127.0.0.1:3000'
 
+const CLIENT_PHONE = '+996700010004' // Гульмира А. (сид)
+const SPEC_PHONE = '+996700000012' // Нурлан Абдыкадыров (сид)
+
 const ROUTES = [
   { name: 'feed', path: '/' },
   { name: 'profile', path: '/s/aizhan-saparova' },
@@ -29,12 +32,17 @@ const ROUTES = [
   { name: 'contact', path: '/contact/nurlan-abdykadyrov', auth: true },
   { name: 'messages', path: '/messages', auth: true },
   { name: 'thread', path: '__FIRST_THREAD__', auth: true },
+  // M4.5: брифы — обе роли (spec: сессия Нурлана)
+  { name: 'briefs-my', path: '/briefs', auth: true },
+  { name: 'brief-new', path: '/briefs/new', auth: true },
+  { name: 'brief-owner', path: '__BRIEF_OWNER__', auth: true },
+  { name: 'briefs-feed', path: '/briefs', auth: 'spec' },
+  { name: 'brief-respond', path: '__BRIEF_RESPOND__', auth: 'spec' },
   { name: 'dev-ui', path: '/dev/ui' },
 ]
 
-/** вход тестовым клиентом сида через OTP-API; возвращает cookie-значение сессии */
-async function loginTestClient(base) {
-  const phone = '+996700010004' // Гульмира А. (сид)
+/** вход тестовым номером сида через OTP-API; возвращает cookie-значение сессии */
+async function loginTestUser(base, phone) {
   const call = async (path, input) => {
     const res = await fetch(`${base}/api/trpc/${path}`, {
       method: 'POST',
@@ -82,9 +90,9 @@ if (!process.env.SHOTS_BASE_URL) {
   process.env.DATABASE_URL = startDb()
   const { execSync } = await import('node:child_process')
   execSync('pnpm --filter @atelier/db seed', { cwd: root, stdio: 'inherit' })
-  // повторные прогоны упираются в наш же rate limit OTP — чистим коды тест-номера
+  // повторные прогоны упираются в наш же rate limit OTP — чистим коды тест-номеров
   execSync(
-    `/usr/lib/postgresql/16/bin/psql -h localhost -p 5433 -U atelier -d atelier -c "DELETE FROM \\"OtpCode\\" WHERE phone = '+996700010004'"`,
+    `/usr/lib/postgresql/16/bin/psql -h localhost -p 5433 -U atelier -d atelier -c "DELETE FROM \\"OtpCode\\" WHERE phone IN ('+996700010004', '+996700000012')"`,
     { stdio: 'ignore' },
   )
 
@@ -101,65 +109,75 @@ try {
   await waitForServer(BASE)
   mkdirSync(OUT, { recursive: true })
 
-  // сессия и первый тред для авторизованных маршрутов
-  const sessionToken = await loginTestClient(BASE)
-  const messagesHtml = await (
-    await fetch(`${BASE}/messages`, { headers: { cookie: `atelier_session=${sessionToken}` } })
-  ).text()
+  // сессии обеих ролей + динамические id для авторизованных маршрутов
+  const sessionToken = await loginTestUser(BASE, CLIENT_PHONE)
+  const specToken = await loginTestUser(BASE, SPEC_PHONE)
+  const fetchAs = (token, path) =>
+    fetch(`${BASE}${path}`, { headers: { cookie: `atelier_session=${token}` } }).then((r) => r.text())
+
+  const messagesHtml = await fetchAs(sessionToken, '/messages')
   // cuid-треда (не спутать с путями чанков вида /messages/page-*.js)
   const firstThread = messagesHtml.match(/\/messages\/(c[a-z0-9]{20,})/)?.[1]
+  // бриф Гульмиры с откликами (первый в «моих») и свежий бриф в ленте специалиста
+  const briefOwner = (await fetchAs(sessionToken, '/briefs')).match(/\/briefs\/(c[a-z0-9]{20,})/)?.[1]
+  const briefRespond = (await fetchAs(specToken, '/briefs')).match(/\/briefs\/(c[a-z0-9]{20,})/)?.[1]
+
+  const DYNAMIC = {
+    __FIRST_THREAD__: firstThread ? `/messages/${firstThread}` : null,
+    __BRIEF_OWNER__: briefOwner ? `/briefs/${briefOwner}` : null,
+    __BRIEF_RESPOND__: briefRespond ? `/briefs/${briefRespond}` : null,
+  }
 
   const browser = await chromium.launch({ executablePath: findChromium() })
   for (const theme of ['light', 'dark']) {
-    const ctx = await browser.newContext({ deviceScaleFactor: 1 })
-    await ctx.addInitScript((t) => localStorage.setItem('theme', t), theme)
-    await ctx.addCookies([
-      {
-        name: 'atelier_session',
-        value: sessionToken,
-        url: BASE,
-        httpOnly: true,
-        sameSite: 'Lax',
-      },
-    ])
+    const mkContext = async (token) => {
+      const c = await browser.newContext({ deviceScaleFactor: 1 })
+      await c.addInitScript((t) => localStorage.setItem('theme', t), theme)
+      await c.addCookies([
+        { name: 'atelier_session', value: token, url: BASE, httpOnly: true, sameSite: 'Lax' },
+      ])
+      return c
+    }
+    const ctx = await mkContext(sessionToken)
+    const specCtx = await mkContext(specToken)
     for (const vp of VIEWPORTS) {
       const page = await ctx.newPage()
       await page.setViewportSize({ width: vp.width, height: vp.height })
+      const specPage = await specCtx.newPage()
+      await specPage.setViewportSize({ width: vp.width, height: vp.height })
       for (const route of ROUTES) {
-        const routePath =
-          route.path === '__FIRST_THREAD__'
-            ? firstThread
-              ? `/messages/${firstThread}`
-              : null
-            : route.path
+        const routePath = route.path in DYNAMIC ? DYNAMIC[route.path] : route.path
         if (!routePath) continue
+        const p = route.auth === 'spec' ? specPage : page
         // networkidle хрупок на динамических страницах (префетчи) — load + пауза стабильнее
-        await page.goto(`${BASE}${routePath}`, { waitUntil: 'load', timeout: 60000 })
-        await page.waitForTimeout(900) // шрифты, изображения, анимации
+        await p.goto(`${BASE}${routePath}`, { waitUntil: 'load', timeout: 60000 })
+        await p.waitForTimeout(900) // шрифты, изображения, анимации
 
         // фиксированные бары в fullPage рисуются посреди страницы — прячем их,
         // а их реальное положение фиксируем отдельным кадром первого экрана
-        const hasBar = await page.evaluate(() => {
+        const hasBar = await p.evaluate(() => {
           const bars = document.querySelectorAll('[data-fixed-bar]')
           for (const b of bars) b.style.visibility = 'hidden'
           return bars.length > 0 && getComputedStyle(bars[0]).display !== 'none'
         })
         const file = path.join(OUT, `${route.name}--${vp.name}--${theme}.png`)
-        await page.screenshot({ path: file, fullPage: true })
+        await p.screenshot({ path: file, fullPage: true })
         console.log(`✓ ${path.basename(file)}`)
 
         if (hasBar) {
-          await page.evaluate(() => {
+          await p.evaluate(() => {
             for (const b of document.querySelectorAll('[data-fixed-bar]')) b.style.visibility = ''
           })
           const vpFile = path.join(OUT, `${route.name}--${vp.name}--${theme}--viewport.png`)
-          await page.screenshot({ path: vpFile })
+          await p.screenshot({ path: vpFile })
           console.log(`✓ ${path.basename(vpFile)}`)
         }
       }
       await page.close()
+      await specPage.close()
     }
     await ctx.close()
+    await specCtx.close()
   }
   await browser.close()
   console.log(`\nГотово → ${OUT}`)

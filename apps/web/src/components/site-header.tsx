@@ -30,7 +30,7 @@ export async function SiteHeader() {
             Специалисты
           </Link>
           <Link
-            href="#"
+            href="/briefs"
             className="rounded-full px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
           >
             Брифы

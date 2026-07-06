@@ -46,3 +46,13 @@ export function plural(n: number, one: string, few: string, many: string): strin
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few
   return many
 }
+
+export function timeAgo(d: Date | null): string {
+  if (!d) return ''
+  const mins = Math.floor((Date.now() - d.getTime()) / 6e4)
+  if (mins < 1) return 'только что'
+  if (mins < 60) return `${mins} мин`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} ч`
+  return `${Math.floor(hours / 24)} дн`
+}
