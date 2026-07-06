@@ -1,6 +1,12 @@
 // Смоук M4 (петля доверия). Требует: сервер :3000 с OTP_DEV_MODE=1; чистые тест-номера +9967000880xx
 // Запуск: node scripts/smoke-m4.mjs · очистка после: psql -f scripts/smoke-cleanup.sql
+import { execSync } from 'node:child_process'
+
 const BASE = 'http://127.0.0.1:3000'
+const PSQL = `/usr/lib/postgresql/16/bin/psql -h localhost -p 5433 -U atelier -d atelier -tAc`
+// M5: новички премодерируются — смоук петли доверия работает от TRUSTED-специалиста
+const trustSmokeUsers = () =>
+  execSync(`${PSQL} "UPDATE \\"User\\" SET \\"trustTier\\"='TRUSTED' WHERE phone LIKE '+9967000880%'"`)
 
 const api = (cookie) => async (path, input, method = 'mutation') => {
   const url =
@@ -39,6 +45,7 @@ const main = async () => {
   const clientCookie = await login('+996700088001')
   const spec = api(specCookie)
   const client = api(clientCookie)
+  trustSmokeUsers()
   console.log('1. вход риелтора и клиента: ✓')
 
   // риелтор публикует кейс-сделку

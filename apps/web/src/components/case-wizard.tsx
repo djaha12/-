@@ -4,7 +4,7 @@ import * as React from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRight, BadgeCheck, Check, ImagePlus, Loader2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BadgeCheck, Check, Clock, ImagePlus, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CaseCard } from '@/components/case-card'
@@ -261,15 +261,26 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
   if (publish.isSuccess) {
     return (
       <div className="animate-fade-up rounded-2xl border border-border bg-surface p-8 text-center">
-        <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-success-soft text-success">
-          <Check className="size-7" aria-hidden />
+        <span
+          className={
+            publish.data.pending
+              ? 'mx-auto flex size-14 items-center justify-center rounded-full bg-accent-soft text-accent-soft-foreground'
+              : 'mx-auto flex size-14 items-center justify-center rounded-full bg-success-soft text-success'
+          }
+        >
+          {publish.data.pending ? (
+            <Clock className="size-7" aria-hidden />
+          ) : (
+            <Check className="size-7" aria-hidden />
+          )}
         </span>
         <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">
-          Кейс опубликован
+          {publish.data.pending ? 'Кейс отправлен на проверку' : 'Кейс опубликован'}
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-muted-foreground">
-          Он уже в ленте и в вашем профиле. Премодерация новых авторов появится вместе с
-          модерацией — пока публикация мгновенная.
+          {publish.data.pending
+            ? 'Первые кейсы новых авторов смотрит модератор — обычно до пары часов. После одобрения кейс появится в ленте, а публикации станут мгновенными.'
+            : 'Он уже в ленте и в вашем профиле.'}
         </p>
         <p className="mx-auto mt-3 max-w-sm rounded-lg bg-surface-muted px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">
           Совет: сделка, проведённая через Ателье, получает бейдж

@@ -4,6 +4,7 @@ import { derivePriceRange } from './pricing'
 import { canTransitionOrder, ORDER_TRANSITIONS, TERMINAL_ORDER_STATUSES, type OrderStatus } from './orders'
 import { canSubmitReview, isValidScores, overallScore } from './reviews'
 import { CONTACT_PLACEHOLDER, hideContacts } from './contacts'
+import { canModerate, needsPremoderation, shouldFreeze, shouldPromoteToTrusted } from './moderation'
 
 describe('лимиты тарифов', () => {
   it('Free: 5-й опубликованный кейс — последний разрешённый', () => {
@@ -157,5 +158,28 @@ describe('окно квоты откликов', () => {
     expect(quotaMonthStart(new Date('2026-06-30T17:00:00Z')).toISOString()).toBe(
       '2026-05-31T18:00:00.000Z',
     )
+  })
+})
+
+describe('модерация и trust-tiers (решение 03/4)', () => {
+  it('новичок проходит премодерацию, доверенные публикуются сразу', () => {
+    expect(needsPremoderation('NEW')).toBe(true)
+    expect(needsPremoderation('TRUSTED')).toBe(false)
+    expect(needsPremoderation('VERIFIED')).toBe(false)
+  })
+  it('повышение до TRUSTED — после 3 одобренных кейсов', () => {
+    expect(shouldPromoteToTrusted('NEW', 2)).toBe(false)
+    expect(shouldPromoteToTrusted('NEW', 3)).toBe(true)
+    expect(shouldPromoteToTrusted('TRUSTED', 100)).toBe(false)
+  })
+  it('3 страйка замораживают аккаунт', () => {
+    expect(shouldFreeze(2)).toBe(false)
+    expect(shouldFreeze(3)).toBe(true)
+  })
+  it('модерируют только MODERATOR и ADMIN', () => {
+    expect(canModerate('MODERATOR')).toBe(true)
+    expect(canModerate('ADMIN')).toBe(true)
+    expect(canModerate('SPECIALIST')).toBe(false)
+    expect(canModerate('CLIENT')).toBe(false)
   })
 })

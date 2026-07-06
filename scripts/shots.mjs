@@ -14,6 +14,7 @@ const BASE = process.env.SHOTS_BASE_URL ?? 'http://127.0.0.1:3000'
 
 const CLIENT_PHONE = '+996700010004' // Гульмира А. (сид)
 const SPEC_PHONE = '+996700000012' // Нурлан Абдыкадыров (сид)
+const MOD_PHONE = '+996700000099' // Модерация Ателье (сид)
 
 const ROUTES = [
   { name: 'feed', path: '/' },
@@ -38,6 +39,8 @@ const ROUTES = [
   { name: 'brief-owner', path: '__BRIEF_OWNER__', auth: true },
   { name: 'briefs-feed', path: '/briefs', auth: 'spec' },
   { name: 'brief-respond', path: '__BRIEF_RESPOND__', auth: 'spec' },
+  // M5: очередь модерации (сессия модератора)
+  { name: 'admin', path: '/admin', auth: 'mod' },
   { name: 'dev-ui', path: '/dev/ui' },
 ]
 
@@ -92,7 +95,7 @@ if (!process.env.SHOTS_BASE_URL) {
   execSync('pnpm --filter @atelier/db seed', { cwd: root, stdio: 'inherit' })
   // повторные прогоны упираются в наш же rate limit OTP — чистим коды тест-номеров
   execSync(
-    `/usr/lib/postgresql/16/bin/psql -h localhost -p 5433 -U atelier -d atelier -c "DELETE FROM \\"OtpCode\\" WHERE phone IN ('+996700010004', '+996700000012')"`,
+    `/usr/lib/postgresql/16/bin/psql -h localhost -p 5433 -U atelier -d atelier -c "DELETE FROM \\"OtpCode\\" WHERE phone IN ('+996700010004', '+996700000012', '+996700000099')"`,
     { stdio: 'ignore' },
   )
 
@@ -109,9 +112,10 @@ try {
   await waitForServer(BASE)
   mkdirSync(OUT, { recursive: true })
 
-  // сессии обеих ролей + динамические id для авторизованных маршрутов
+  // сессии трёх ролей + динамические id для авторизованных маршрутов
   const sessionToken = await loginTestUser(BASE, CLIENT_PHONE)
   const specToken = await loginTestUser(BASE, SPEC_PHONE)
+  const modToken = await loginTestUser(BASE, MOD_PHONE)
   const fetchAs = (token, path) =>
     fetch(`${BASE}${path}`, { headers: { cookie: `atelier_session=${token}` } }).then((r) => r.text())
 
@@ -140,15 +144,18 @@ try {
     }
     const ctx = await mkContext(sessionToken)
     const specCtx = await mkContext(specToken)
+    const modCtx = await mkContext(modToken)
     for (const vp of VIEWPORTS) {
       const page = await ctx.newPage()
       await page.setViewportSize({ width: vp.width, height: vp.height })
       const specPage = await specCtx.newPage()
       await specPage.setViewportSize({ width: vp.width, height: vp.height })
+      const modPage = await modCtx.newPage()
+      await modPage.setViewportSize({ width: vp.width, height: vp.height })
       for (const route of ROUTES) {
         const routePath = route.path in DYNAMIC ? DYNAMIC[route.path] : route.path
         if (!routePath) continue
-        const p = route.auth === 'spec' ? specPage : page
+        const p = route.auth === 'spec' ? specPage : route.auth === 'mod' ? modPage : page
         // networkidle хрупок на динамических страницах (префетчи) — load + пауза стабильнее
         await p.goto(`${BASE}${routePath}`, { waitUntil: 'load', timeout: 60000 })
         await p.waitForTimeout(900) // шрифты, изображения, анимации
@@ -175,9 +182,11 @@ try {
       }
       await page.close()
       await specPage.close()
+      await modPage.close()
     }
     await ctx.close()
     await specCtx.close()
+    await modCtx.close()
   }
   await browser.close()
   console.log(`\nГотово → ${OUT}`)

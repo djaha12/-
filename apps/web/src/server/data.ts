@@ -289,7 +289,17 @@ export async function getSpecialist(slug: string): Promise<
   }
 }
 
-export async function getCase(slug: string): Promise<
+export interface CaseModerationNote {
+  /** PENDING_REVIEW | REJECTED | HIDDEN — баннер статуса для автора */
+  state: 'PENDING_REVIEW' | 'REJECTED' | 'HIDDEN'
+  /** причина отклонения из ModerationItem.resolution */
+  reason: string | null
+}
+
+export async function getCase(
+  slug: string,
+  viewerId?: string | null,
+): Promise<
   | {
       item: CaseItem
       author: Specialist
@@ -299,6 +309,8 @@ export async function getCase(slug: string): Promise<
       beforeAfter: { before: MockImage; after: MockImage } | null
       review: Review | null
       related: CaseItem[]
+      /** только для автора: кейс на проверке/отклонён/скрыт */
+      moderation: CaseModerationNote | null
     }
   | null
 > {
@@ -309,7 +321,28 @@ export async function getCase(slug: string): Promise<
       images: { where: { deletedAt: null }, orderBy: { sortOrder: 'asc' } },
     },
   })
-  if (!row || row.deletedAt || row.status !== 'PUBLISHED') return null
+  if (!row || row.deletedAt) return null
+  // публично виден только опубликованный и не скрытый; автору — любой его кейс
+  const isAuthor = viewerId != null && row.authorId === viewerId
+  const publiclyVisible = row.status === 'PUBLISHED' && !row.hiddenAt
+  if (!publiclyVisible && !isAuthor) return null
+
+  let moderation: CaseModerationNote | null = null
+  if (isAuthor && !publiclyVisible) {
+    const state = row.hiddenAt
+      ? ('HIDDEN' as const)
+      : row.status === 'REJECTED'
+        ? ('REJECTED' as const)
+        : ('PENDING_REVIEW' as const)
+    const item =
+      state === 'REJECTED'
+        ? await prisma.moderationItem.findFirst({
+            where: { entityType: 'CASE', entityId: row.id, status: 'REJECTED' },
+            orderBy: { resolvedAt: 'desc' },
+          })
+        : null
+    moderation = { state, reason: item?.resolution ?? null }
+  }
 
   const profile = await prisma.specialistProfile.findUnique({
     where: { userId: row.authorId },
@@ -375,6 +408,7 @@ export async function getCase(slug: string): Promise<
         }
       : null,
     related: relatedRows.map(toCaseItem),
+    moderation,
   }
 }
 
@@ -697,5 +731,119 @@ export async function getBriefView(briefId: string, viewerId: string): Promise<B
         : { src: '', width: 4, height: 3, blurDataURL: '' },
     })),
     quota: { used: monthUsed, limit: PLAN_LIMITS.FREE.maxBriefResponsesPerMonth },
+  }
+}
+
+/* ============================================================================
+ * M5: очередь модерации для /admin (MODERATOR/ADMIN).
+ * ==========================================================================*/
+
+export const REPORT_REASON_LABEL: Record<string, string> = {
+  STOLEN_CONTENT: 'Украденный контент',
+  SPAM: 'Спам',
+  CONTACTS_IN_PUBLIC: 'Контакты в описании',
+  OFFENSIVE: 'Оскорбительный контент',
+  FAKE: 'Недостоверно',
+  FALSE_AFFILIATION: 'Ложная принадлежность',
+  FRAUD: 'Мошенничество',
+  OTHER: 'Другое',
+}
+
+export interface PendingCaseItem {
+  id: string
+  slug: string
+  title: string
+  authorName: string
+  isDeal: boolean
+  districtName: string | null
+  createdAt: Date
+  image: MockImage
+}
+
+export interface OpenReportItem {
+  id: string
+  reasonLabel: string
+  comment: string | null
+  reporterName: string
+  createdAt: Date
+  target: { type: 'CASE' | 'REVIEW'; title: string; href: string | null } | null
+}
+
+export async function getModerationQueue(): Promise<{
+  pendingCases: PendingCaseItem[]
+  openReports: OpenReportItem[]
+}> {
+  const [cases, reports] = await Promise.all([
+    prisma.case.findMany({
+      where: { status: 'PENDING_REVIEW', deletedAt: null },
+      include: { coverImage: true, district: true, author: true },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    }),
+    prisma.report.findMany({
+      where: { status: 'OPEN' },
+      include: { reporter: true },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    }),
+  ])
+
+  // цели жалоб — батчем, без N+1
+  const caseIds = reports.filter((r) => r.targetType === 'CASE').map((r) => r.targetId)
+  const reviewIds = reports.filter((r) => r.targetType === 'REVIEW').map((r) => r.targetId)
+  const [targetCases, targetReviews] = await Promise.all([
+    caseIds.length
+      ? prisma.case.findMany({ where: { id: { in: caseIds } }, include: { author: true } })
+      : Promise.resolve([]),
+    reviewIds.length
+      ? prisma.review.findMany({ where: { id: { in: reviewIds } }, include: { author: true } })
+      : Promise.resolve([]),
+  ])
+  const caseById = new Map(targetCases.map((c) => [c.id, c]))
+  const reviewById = new Map(targetReviews.map((r) => [r.id, r]))
+
+  return {
+    pendingCases: cases.map((c) => ({
+      id: c.id,
+      slug: c.slug,
+      title: c.title,
+      authorName: c.author.displayName ?? 'Специалист',
+      isDeal: c.dealType != null,
+      districtName: c.district?.nameRu ?? null,
+      createdAt: c.createdAt,
+      image: c.coverImage
+        ? toImage(c.coverImage)
+        : { src: '', width: 4, height: 3, blurDataURL: '' },
+    })),
+    openReports: reports.map((r) => {
+      let target: OpenReportItem['target'] = null
+      if (r.targetType === 'CASE') {
+        const c = caseById.get(r.targetId)
+        target = c
+          ? {
+              type: 'CASE',
+              title: `${c.title} — ${c.author.displayName ?? 'Специалист'}`,
+              href: c.hiddenAt ? null : `/case/${c.slug}`,
+            }
+          : { type: 'CASE', title: 'Кейс удалён', href: null }
+      } else if (r.targetType === 'REVIEW') {
+        const rv = reviewById.get(r.targetId)
+        target = rv
+          ? {
+              type: 'REVIEW',
+              title: `Отзыв ${rv.author.displayName ?? 'клиента'}: «${(rv.text ?? '').slice(0, 80)}…»`,
+              href: null,
+            }
+          : { type: 'REVIEW', title: 'Отзыв удалён', href: null }
+      }
+      return {
+        id: r.id,
+        reasonLabel: REPORT_REASON_LABEL[r.reason] ?? r.reason,
+        comment: r.comment,
+        reporterName: r.reporter?.displayName ?? 'Гость',
+        createdAt: r.createdAt,
+        target,
+      }
+    }),
   }
 }

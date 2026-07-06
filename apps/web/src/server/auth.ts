@@ -41,6 +41,8 @@ export interface SessionUser {
   phone: string | null
   role: string
   specialistSlug: string | null
+  trustTier: string
+  frozenAt: Date | null
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
@@ -58,5 +60,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     phone: session.user.phone,
     role: session.user.role,
     specialistSlug: session.user.specialistProfile?.slug ?? null,
+    trustTier: session.user.trustTier,
+    frozenAt: session.user.frozenAt,
   }
 }

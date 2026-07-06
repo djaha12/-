@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { BeforeAfterSlider } from '@/components/before-after-slider'
 import { CaseCard, DEAL_TYPE_LABEL, dealOutcomeLabel } from '@/components/case-card'
+import { ReportButton } from '@/components/report-button'
 import { ReviewCard } from '@/components/review-card'
 import { SaveButton } from '@/components/save-button'
 import { VerifiedBadge } from '@/components/verified-badge'
@@ -20,11 +21,12 @@ export const dynamic = 'force-dynamic'
 
 export default async function CasePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const data = await getCase(slug)
-  if (!data) notFound()
   const viewer = await getSessionUser()
+  // автор видит и неопубликованный свой кейс (баннер статуса ниже)
+  const data = await getCase(slug, viewer?.id)
+  if (!data) notFound()
 
-  const { item: rawItem, author, gallery, beforeAfter, review, story } = data
+  const { item: rawItem, author, gallery, beforeAfter, review, story, moderation } = data
   const [item] = await markSaved([rawItem], viewer?.id)
   const related = await markSaved(data.related, viewer?.id)
   const deal = item!.deal
@@ -113,6 +115,34 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
     <>
       <SiteHeader />
       <main className="mx-auto max-w-[1160px] px-4 pb-28 sm:px-6 md:pb-20">
+        {moderation ? (
+          <div
+            className={`mt-6 rounded-xl border px-4 py-3.5 text-sm leading-relaxed ${
+              moderation.state === 'PENDING_REVIEW'
+                ? 'border-transparent bg-accent-soft text-accent-soft-foreground'
+                : 'border-border bg-surface-muted text-muted-foreground'
+            }`}
+          >
+            {moderation.state === 'PENDING_REVIEW' ? (
+              <>
+                <span className="font-semibold">Кейс на проверке.</span> Обычно это занимает до
+                пары часов — после одобрения он появится в ленте и на витрине. Виден только вам.
+              </>
+            ) : moderation.state === 'REJECTED' ? (
+              <>
+                <span className="font-semibold text-foreground">Кейс отклонён модерацией.</span>{' '}
+                {moderation.reason ? `Причина: ${moderation.reason}` : 'Причина не указана.'}{' '}
+                Исправьте и опубликуйте заново — мы посмотрим ещё раз.
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-foreground">Кейс скрыт после жалобы.</span>{' '}
+                Он не виден в ленте и на витрине. Если считаете это ошибкой — напишите в
+                поддержку.
+              </>
+            )}
+          </div>
+        ) : null}
         <header className="pt-8 sm:pt-12">
           <div className="flex flex-wrap items-center gap-2">
             {deal ? (
@@ -338,6 +368,13 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
               ))}
             </div>
           </section>
+        ) : null}
+
+        {/* жалоба — тихо в подвале контента; работает и для гостей */}
+        {!moderation ? (
+          <div className="mt-12">
+            <ReportButton caseSlug={item!.slug} />
+          </div>
         ) : null}
       </main>
       <SiteFooter className="max-md:pb-24" />

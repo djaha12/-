@@ -528,8 +528,101 @@ async function seedBriefs() {
   console.log('✓ Брифы:', await prisma.brief.count(), '· откликов:', await prisma.briefResponse.count())
 }
 
+/** M5: демо-модерация. Top-up: модератор, новичок с кейсом на проверке, две жалобы. */
+async function seedModeration() {
+  if ((await prisma.user.count({ where: { role: 'MODERATOR' } })) > 0) return
+
+  await prisma.user.create({
+    data: {
+      phone: '+996700000099',
+      phoneVerifiedAt: new Date(),
+      role: 'MODERATOR',
+      trustTier: 'VERIFIED',
+      displayName: 'Модерация Ателье',
+    },
+  })
+
+  // новичок-риелтор: его первый кейс ждёт премодерации (trust-tier NEW)
+  const bakyt = await prisma.user.create({
+    data: {
+      phone: '+996700000021',
+      phoneVerifiedAt: new Date(),
+      role: 'SPECIALIST',
+      trustTier: 'NEW',
+      displayName: 'Бакыт Осмонов',
+    },
+  })
+  await prisma.specialistProfile.create({
+    data: {
+      userId: bakyt.id,
+      slug: 'bakyt-osmonov',
+      specialization: 'REALTOR',
+      cityId: (await prisma.city.findUnique({ where: { slug: 'bishkek' } }))?.id,
+      reviewAggregate: { create: {} },
+    },
+  })
+  const tunguch = await prisma.district.findFirst({ where: { nameRu: 'Тунгуч' } })
+  const pendingCase = await prisma.case.create({
+    data: {
+      authorId: bakyt.id,
+      slug: 'prodazha-odnushki-tunguch',
+      title: 'Продажа однушки в Тунгуче за 26 дней',
+      status: 'PENDING_REVIEW',
+      authorRole: 'REALTOR_LISTING',
+      cityId: (await prisma.city.findUnique({ where: { slug: 'bishkek' } }))?.id,
+      districtId: tunguch?.id ?? null,
+      hasPublishRights: true,
+      dealType: 'SALE',
+      propertyType: 'APARTMENT',
+      dealPriceMinSom: 2_950_000,
+      dealPriceMaxSom: 3_150_000,
+      dealPriceVisibility: 'RANGE',
+      daysOnMarket: 26,
+      images: { create: [imageCreate('c21', 0)] },
+    },
+    include: { images: true },
+  })
+  await prisma.case.update({
+    where: { id: pendingCase.id },
+    data: { coverImageId: pendingCase.images[0]!.id },
+  })
+  await prisma.moderationItem.create({
+    data: { entityType: 'CASE', entityId: pendingCase.id, reason: 'NEW_USER_PREMOD' },
+  })
+
+  // жалобы: от клиента и от гостя (анонимный cookie)
+  const reporter = await prisma.user.findFirst({ where: { role: 'CLIENT' } })
+  const target1 = await prisma.case.findUnique({ where: { slug: 'dvushka-toktogula' } })
+  const target2 = await prisma.case.findUnique({ where: { slug: 'loft-dzhal-72' } })
+  if (reporter && target1) {
+    await prisma.report.create({
+      data: {
+        reporterId: reporter.id,
+        targetType: 'CASE',
+        targetId: target1.id,
+        reason: 'CONTACTS_IN_PUBLIC',
+        comment: 'В описании кейса номер телефона — просили же в чат.',
+      },
+    })
+  }
+  if (target2) {
+    await prisma.report.create({
+      data: {
+        reporterAnonId: 'seed-anon-1',
+        targetType: 'CASE',
+        targetId: target2.id,
+        reason: 'STOLEN_CONTENT',
+        comment: 'Видел эти фото в инстаграме другого дизайнера.',
+      },
+    })
+  }
+
+  console.log('✓ Модерация: очередь', await prisma.case.count({ where: { status: 'PENDING_REVIEW' } }), '· жалоб:', await prisma.report.count({ where: { status: 'OPEN' } }))
+}
+
 main()
   .then(seedBriefs)
+  .then(seedModeration)
   .catch((e) => {
     console.error(e)
     process.exit(1)

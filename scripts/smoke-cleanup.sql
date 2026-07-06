@@ -1,6 +1,14 @@
 -- Очистка смоук-артефактов (тестовые номера +9967000880xx)
 BEGIN;
 CREATE TEMP TABLE smoke_users AS SELECT id FROM "User" WHERE phone LIKE '+9967000880%';
+-- модерация и жалобы (M5)
+DELETE FROM "Report" WHERE "reporterId" IN (SELECT id FROM smoke_users)
+   OR "targetId" IN (SELECT id FROM "Case" WHERE "authorId" IN (SELECT id FROM smoke_users))
+   OR id LIKE 'smoke-%';
+DELETE FROM "ModerationItem" WHERE "entityId" IN (SELECT id FROM "Case" WHERE "authorId" IN (SELECT id FROM smoke_users));
+DELETE FROM "UserStrike" WHERE "userId" IN (SELECT id FROM smoke_users) OR id LIKE 'smoke-%';
+DELETE FROM "AuditLog" WHERE "entityId" IN (SELECT id FROM "Case" WHERE "authorId" IN (SELECT id FROM smoke_users))
+   OR "entityId" IN (SELECT id FROM smoke_users);
 -- брифы и отклики (BriefResponseCase ссылается на Case — чистим до кейсов)
 DELETE FROM "BriefResponseCase" WHERE "briefResponseId" IN (
   SELECT id FROM "BriefResponse" WHERE "specialistId" IN (SELECT id FROM smoke_users)

@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { Bookmark, MapPin, Menu, MessageCircle, Search } from 'lucide-react'
+import { Bookmark, MapPin, Menu, MessageCircle, Search, ShieldCheck } from 'lucide-react'
+import { canModerate } from '@atelier/core'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { LogoutButton } from '@/components/logout-button'
@@ -67,6 +68,13 @@ export async function SiteHeader() {
           <ThemeToggle />
           {user ? (
             <>
+              {canModerate(user.role) ? (
+                <Button asChild variant="ghost" size="icon" aria-label="Модерация">
+                  <Link href="/admin">
+                    <ShieldCheck />
+                  </Link>
+                </Button>
+              ) : null}
               <Button asChild variant="ghost" size="icon" aria-label="Сообщения">
                 <Link href="/messages">
                   <MessageCircle />

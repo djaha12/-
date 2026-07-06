@@ -1,17 +1,23 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
+import { cookies } from 'next/headers'
 import { initTRPC, TRPCError } from '@trpc/server'
 import superjson from 'superjson'
 import { z } from 'zod'
 import {
+  canModerate,
   canRespondToBrief,
   canSubmitReview,
   canTransitionOrder,
   derivePriceRange,
   isValidScores,
+  needsPremoderation,
   quotaMonthStart,
+  shouldFreeze,
+  shouldPromoteToTrusted,
   AUTO_CONFIRM_DAYS,
   type OrderActor,
   type OrderStatus,
+  type TrustTier,
 } from '@atelier/core'
 import { prisma, Prisma, type OrderState } from '@atelier/db'
 import { recalcDealStats, recalcReviewAggregate } from './aggregates'
@@ -40,6 +46,23 @@ const authedProcedure = t.procedure.use(({ ctx, next }) => {
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Войдите, чтобы продолжить.' })
   }
   return next({ ctx: { user: ctx.user } })
+})
+// создание контента закрыто замороженным (3 страйка); чтение и чат по заказам остаются
+const activeProcedure = authedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.frozenAt) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Аккаунт заморожен за нарушения правил. Напишите в поддержку — разберёмся.',
+    })
+  }
+  return next()
+})
+// админку не раскрываем: не-модератору отвечаем как о несуществующем
+const moderatorProcedure = authedProcedure.use(({ ctx, next }) => {
+  if (!canModerate(ctx.user.role)) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Не найдено.' })
+  }
+  return next()
 })
 
 const PHONE_RE = /^\+996\d{9}$/
@@ -154,7 +177,7 @@ const uploadedImage = z.object({
 })
 
 const casesRouter = t.router({
-  create: authedProcedure
+  create: activeProcedure
     .input(
       z
         .object({
@@ -224,14 +247,16 @@ const casesRouter = t.router({
         ? await prisma.style.findFirst({ where: { nameRu: input.styleName } })
         : null
 
+      // trust-tiers (решение 03/4): первые кейсы новичка — через премодерацию,
+      // доверенные публикуются сразу
+      const pending = needsPremoderation(ctx.user.trustTier as TrustTier)
       const created = await prisma.case.create({
         data: {
           authorId: ctx.user.id,
           slug,
           title: input.title,
-          // trust-tiers: премодерация новичков — M5; в M2 публикуем сразу
-          status: 'PUBLISHED',
-          publishedAt: new Date(),
+          status: pending ? 'PENDING_REVIEW' : 'PUBLISHED',
+          publishedAt: pending ? null : new Date(),
           authorRole: isDeal ? 'REALTOR_LISTING' : 'FULL_PROJECT',
           cityId: bishkek?.id,
           districtId: district?.id ?? null,
@@ -264,7 +289,12 @@ const casesRouter = t.router({
         where: { id: created.id },
         data: { coverImageId: created.images[0]!.id },
       })
-      return { slug: created.slug }
+      if (pending) {
+        await prisma.moderationItem.create({
+          data: { entityType: 'CASE', entityId: created.id, reason: 'NEW_USER_PREMOD' },
+        })
+      }
+      return { slug: created.slug, pending }
     }),
 })
 
@@ -332,7 +362,7 @@ async function assertParticipant(threadId: string, userId: string) {
 }
 
 const leadsRouter = t.router({
-  create: authedProcedure
+  create: activeProcedure
     .input(
       z.object({
         specialistSlug: z.string(),
@@ -717,7 +747,7 @@ const BRIEF_OBJECT = {
 const MAX_OPEN_BRIEFS = 10
 
 const briefsRouter = t.router({
-  create: authedProcedure
+  create: activeProcedure
     .input(
       z
         .object({
@@ -770,7 +800,7 @@ const briefsRouter = t.router({
       return { id: brief.id }
     }),
 
-  respond: authedProcedure
+  respond: activeProcedure
     .input(
       z.object({
         briefId: z.string(),
@@ -924,6 +954,262 @@ const briefsRouter = t.router({
     }),
 })
 
+/* ============================================================================
+ * M5: жалобы и модерация. Премодерация новичков (решение 03/4) — в cases.create;
+ * здесь: приём жалоб (в т.ч. от гостей) и действия модератора. Чтение очереди —
+ * server/data.ts (getModerationQueue).
+ * ==========================================================================*/
+
+const ANON_COOKIE = 'atelier_anon'
+const REPORTS_PER_DAY = 10
+
+const REPORT_REASON = {
+  stolen: 'STOLEN_CONTENT',
+  spam: 'SPAM',
+  contacts: 'CONTACTS_IN_PUBLIC',
+  offensive: 'OFFENSIVE',
+  fake: 'FAKE',
+  other: 'OTHER',
+} as const
+
+const reportsRouter = t.router({
+  /** Жалоба на кейс. Гостям можно: анонимный cookie вместо аккаунта (решение backend №14). */
+  create: publicProcedure
+    .input(
+      z.object({
+        caseSlug: z.string(),
+        reason: z.enum(['stolen', 'spam', 'contacts', 'offensive', 'fake', 'other']),
+        comment: z.string().trim().max(1000).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const target = await prisma.case.findUnique({ where: { slug: input.caseSlug } })
+      if (!target || target.deletedAt || target.status !== 'PUBLISHED') {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Кейс не найден.' })
+      }
+      const reporterId = ctx.user?.id ?? null
+      let anonId: string | null = null
+      if (!reporterId) {
+        const jar = await cookies()
+        anonId = jar.get(ANON_COOKIE)?.value?.slice(0, 64) ?? null
+        if (!anonId) {
+          anonId = randomBytes(16).toString('hex')
+          jar.set(ANON_COOKIE, anonId, {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 365 * 864e2,
+            path: '/',
+          })
+        }
+      }
+      const sender = reporterId ? { reporterId } : { reporterAnonId: anonId }
+      // повторная жалоба того же лица на тот же кейс — не ошибка, а «уже получили»
+      const existing = await prisma.report.findFirst({
+        where: { targetType: 'CASE', targetId: target.id, ...sender },
+      })
+      if (existing) return { ok: true, duplicate: true }
+      // антиспам: суточный потолок на отправителя
+      const recent = await prisma.report.count({
+        where: { createdAt: { gte: new Date(Date.now() - 864e5) }, ...sender },
+      })
+      if (recent >= REPORTS_PER_DAY) {
+        throw new TRPCError({
+          code: 'TOO_MANY_REQUESTS',
+          message: 'Слишком много жалоб за сутки — сделайте паузу.',
+        })
+      }
+      await prisma.report.create({
+        data: {
+          reporterId,
+          reporterAnonId: anonId,
+          targetType: 'CASE',
+          targetId: target.id,
+          reason: REPORT_REASON[input.reason],
+          comment: input.comment || null,
+        },
+      })
+      return { ok: true, duplicate: false }
+    }),
+})
+
+const adminRouter = t.router({
+  /** Премодерация: одобрить кейс новичка. Порог одобрений повышает автора до TRUSTED. */
+  approveCase: moderatorProcedure
+    .input(z.object({ caseId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const target = await prisma.case.findUnique({ where: { id: input.caseId } })
+      if (!target) throw new TRPCError({ code: 'NOT_FOUND', message: 'Кейс не найден.' })
+      const now = new Date()
+      const claimed = await prisma.$transaction(async (tx) => {
+        const u = await tx.case.updateMany({
+          where: { id: target.id, status: 'PENDING_REVIEW' },
+          data: { status: 'PUBLISHED', publishedAt: now },
+        })
+        if (u.count === 1) {
+          await tx.moderationItem.updateMany({
+            where: { entityType: 'CASE', entityId: target.id, status: 'PENDING' },
+            data: { status: 'APPROVED', resolvedById: ctx.user.id, resolvedAt: now },
+          })
+          await tx.auditLog.create({
+            data: { actorId: ctx.user.id, action: 'case.approve', entityType: 'CASE', entityId: target.id },
+          })
+        }
+        return u.count
+      })
+      if (claimed === 0) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'Кейс уже обработан — обновите страницу.' })
+      }
+      // повышение автора: после порога одобренных публикуется без очереди
+      const author = await prisma.user.findUnique({ where: { id: target.authorId } })
+      if (author) {
+        const published = await prisma.case.count({
+          where: { authorId: author.id, status: 'PUBLISHED', deletedAt: null },
+        })
+        if (shouldPromoteToTrusted(author.trustTier as TrustTier, published)) {
+          await prisma.user.update({ where: { id: author.id }, data: { trustTier: 'TRUSTED' } })
+          await prisma.auditLog.create({
+            data: {
+              actorId: ctx.user.id,
+              action: 'user.promote_trusted',
+              entityType: 'USER',
+              entityId: author.id,
+              payload: { publishedCases: published },
+            },
+          })
+        }
+      }
+      if (target.dealType) await recalcDealStats(target.authorId)
+      return { ok: true }
+    }),
+
+  /** Премодерация: отклонить кейс с причиной (автор увидит её на странице кейса) */
+  rejectCase: moderatorProcedure
+    .input(
+      z.object({
+        caseId: z.string(),
+        reason: z.string().trim().min(5, 'Причина нужна автору, чтобы исправить кейс.').max(500),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const now = new Date()
+      const claimed = await prisma.$transaction(async (tx) => {
+        const u = await tx.case.updateMany({
+          where: { id: input.caseId, status: 'PENDING_REVIEW' },
+          data: { status: 'REJECTED' },
+        })
+        if (u.count === 1) {
+          await tx.moderationItem.updateMany({
+            where: { entityType: 'CASE', entityId: input.caseId, status: 'PENDING' },
+            data: { status: 'REJECTED', resolvedById: ctx.user.id, resolvedAt: now, resolution: input.reason },
+          })
+          await tx.auditLog.create({
+            data: {
+              actorId: ctx.user.id,
+              action: 'case.reject',
+              entityType: 'CASE',
+              entityId: input.caseId,
+              payload: { reason: input.reason },
+            },
+          })
+        }
+        return u.count
+      })
+      if (claimed === 0) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'Кейс уже обработан — обновите страницу.' })
+      }
+      return { ok: true }
+    }),
+
+  /**
+   * Решение по жалобе. hide: контент скрывается, автору — страйк
+   * (3 страйка = заморозка). dismiss: жалоба отклонена, контент не тронут.
+   */
+  resolveReport: moderatorProcedure
+    .input(z.object({ reportId: z.string(), action: z.enum(['hide', 'dismiss']) }))
+    .mutation(async ({ ctx, input }) => {
+      const report = await prisma.report.findUnique({ where: { id: input.reportId } })
+      if (!report) throw new TRPCError({ code: 'NOT_FOUND', message: 'Жалоба не найдена.' })
+      const now = new Date()
+
+      if (input.action === 'dismiss') {
+        const claimed = await prisma.$transaction(async (tx) => {
+          const u = await tx.report.updateMany({
+            where: { id: report.id, status: 'OPEN' },
+            data: { status: 'DISMISSED', resolvedById: ctx.user.id, resolvedAt: now },
+          })
+          if (u.count === 1) {
+            await tx.auditLog.create({
+              data: { actorId: ctx.user.id, action: 'report.dismiss', entityType: report.targetType, entityId: report.targetId },
+            })
+          }
+          return u.count
+        })
+        if (claimed === 0) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Жалоба уже обработана.' })
+        }
+        return { ok: true }
+      }
+
+      // hide: поддерживаем кейсы и отзывы (MVP-объекты жалоб)
+      if (report.targetType !== 'CASE' && report.targetType !== 'REVIEW') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Этот тип жалобы пока разбирается вручную.' })
+      }
+      const result = await prisma.$transaction(async (tx) => {
+        const u = await tx.report.updateMany({
+          where: { id: report.id, status: 'OPEN' },
+          data: { status: 'RESOLVED', resolvedById: ctx.user.id, resolvedAt: now },
+        })
+        if (u.count === 0) return null
+        // страйк — автору контента; витрина пересчитывается у специалиста,
+        // к которому контент относится (для отзыва это НЕ его автор-клиент)
+        let offenderId: string
+        let recalcSpecialistId: string
+        if (report.targetType === 'CASE') {
+          const kase = await tx.case.findUnique({ where: { id: report.targetId } })
+          if (!kase) throw new TRPCError({ code: 'NOT_FOUND', message: 'Кейс жалобы не найден.' })
+          await tx.case.updateMany({ where: { id: kase.id, hiddenAt: null }, data: { hiddenAt: now } })
+          offenderId = kase.authorId
+          recalcSpecialistId = kase.authorId
+        } else {
+          const review = await tx.review.findUnique({ where: { id: report.targetId } })
+          if (!review) throw new TRPCError({ code: 'NOT_FOUND', message: 'Отзыв жалобы не найден.' })
+          await tx.review.updateMany({ where: { id: review.id, hiddenAt: null }, data: { hiddenAt: now } })
+          offenderId = review.authorId
+          recalcSpecialistId = review.specialistId
+        }
+        await tx.userStrike.create({
+          data: { userId: offenderId, reasonCode: report.reason, comment: report.comment },
+        })
+        await tx.auditLog.create({
+          data: {
+            actorId: ctx.user.id,
+            action: 'report.hide_content',
+            entityType: report.targetType,
+            entityId: report.targetId,
+            payload: { reason: report.reason },
+          },
+        })
+        // 3 страйка = заморозка (инвариант из core)
+        const strikes = await tx.userStrike.count({ where: { userId: offenderId } })
+        if (shouldFreeze(strikes)) {
+          await tx.user.updateMany({ where: { id: offenderId, frozenAt: null }, data: { frozenAt: now } })
+          await tx.auditLog.create({
+            data: { actorId: ctx.user.id, action: 'user.freeze', entityType: 'USER', entityId: offenderId, payload: { strikes } },
+          })
+        }
+        return { recalcSpecialistId }
+      })
+      if (!result) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'Жалоба уже обработана.' })
+      }
+      // витрина пересчитывается вне транзакции: скрытое выпадает из агрегатов
+      await recalcReviewAggregate(result.recalcSpecialistId)
+      await recalcDealStats(result.recalcSpecialistId)
+      return { ok: true }
+    }),
+})
+
 export const appRouter = t.router({
   auth: authRouter,
   cases: casesRouter,
@@ -933,6 +1219,8 @@ export const appRouter = t.router({
   orders: ordersRouter,
   reviews: reviewsRouter,
   briefs: briefsRouter,
+  reports: reportsRouter,
+  admin: adminRouter,
 })
 
 export type AppRouter = typeof appRouter

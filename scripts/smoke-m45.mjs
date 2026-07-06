@@ -6,6 +6,10 @@ const BASE = 'http://127.0.0.1:3000'
 const CRON_SECRET = 'smoke-cron'
 const PSQL = `/usr/lib/postgresql/16/bin/psql -h localhost -p 5433 -U atelier -d atelier -tAc`
 
+// M5: новички премодерируются — тест-юзеров поднимаем до TRUSTED
+const trustSmokeUsers = () =>
+  execSync(`${PSQL} "UPDATE \\"User\\" SET \\"trustTier\\"='TRUSTED' WHERE phone LIKE '+9967000880%'"`)
+
 const api = (cookie) => async (path, input, method = 'mutation') => {
   const url =
     method === 'query'
@@ -55,6 +59,7 @@ async function autoConfirm() {
   const clientCookie = await login('+996700088011')
   const spec = api(specCookie)
   const client = api(clientCookie)
+  trustSmokeUsers()
 
   const caseSlug = await publishCase(specCookie, 'Смоук М4.5: продажа однушки')
   const caseHtml = await (await fetch(`${BASE}/case/${caseSlug}`)).text()
