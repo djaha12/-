@@ -24,13 +24,16 @@ export default async function BriefsPage() {
 
   const isSpecialist = user.specialistSlug != null
   const briefs = isSpecialist ? await getOpenBriefs(user.id) : await getMyBriefs(user.id)
+  // риелтор тоже бывает клиентом (продаёт своё) — его брифы не должны потеряться
+  const ownBriefs = isSpecialist ? await getMyBriefs(user.id) : []
 
   return (
     <>
       <SiteHeader />
       <main className="mx-auto max-w-2xl px-4 pb-20 sm:px-6">
-        <div className="flex items-end justify-between gap-4 pt-10 pb-6">
-          <div>
+        {/* на 390 кнопка уходит под подзаголовок, не зажимая текст в колонку */}
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-4 pt-10 pb-6">
+          <div className="basis-full sm:basis-auto sm:flex-1">
             <h1 className="font-display text-[32px] leading-[1.12] font-semibold tracking-tight sm:text-4xl">
               {isSpecialist ? 'Брифы' : 'Мои брифы'}
             </h1>
@@ -70,6 +73,17 @@ export default async function BriefsPage() {
             ))}
           </ul>
         )}
+
+        {ownBriefs.length > 0 ? (
+          <section className="mt-10">
+            <h2 className="mb-4 font-display text-xl font-semibold">Мои брифы</h2>
+            <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
+              {ownBriefs.map((b) => (
+                <BriefCard key={b.id} brief={b} variant="mine" />
+              ))}
+            </ul>
+          </section>
+        ) : null}
       </main>
       <SiteFooter />
     </>

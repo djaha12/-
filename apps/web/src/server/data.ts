@@ -1,5 +1,5 @@
 import 'server-only'
-import { PLAN_LIMITS } from '@atelier/core'
+import { hideContacts, quotaMonthStart, PLAN_LIMITS } from '@atelier/core'
 import { prisma, type Prisma, type Specialization } from '@atelier/db'
 import type { CaseItem, DealInfo, DealType, MockImage, Review, Specialist } from '@/mock/data'
 
@@ -516,8 +516,9 @@ function toBriefListItem(
 ): BriefListItem {
   return {
     id: row.id,
-    title: row.title,
-    description: row.description ?? '',
+    title: hideContacts(row.title),
+    // автоскрытие контактов (решение 03/7) — на чтении, оригинал в БД не трогаем
+    description: hideContacts(row.description ?? ''),
     objectTypeLabel: BRIEF_OBJECT_LABEL[row.objectType] ?? 'Другое',
     districtName: row.district?.nameRu ?? null,
     budgetMin: row.budgetMin,
@@ -599,7 +600,8 @@ function toResponseItem(
   return {
     id: row.id,
     status: row.status,
-    message: row.message,
+    // контакты в отклике — только через чат (решение 03/7)
+    message: hideContacts(row.message),
     priceEstimate: row.priceEstimate,
     createdAt: row.createdAt,
     specialist: {
@@ -678,10 +680,8 @@ export async function getBriefView(briefId: string, viewerId: string): Promise<B
       take: 12,
     }),
     prisma.briefResponse.count({
-      where: {
-        specialistId: viewerId,
-        createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
-      },
+      // то же окно, что в мутации respond — единый helper из core
+      where: { specialistId: viewerId, createdAt: { gte: quotaMonthStart() } },
     }),
   ])
 

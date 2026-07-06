@@ -33,25 +33,30 @@ function CaseThumbs({ cases }: { cases: BriefResponseItem['cases'] }) {
         <Link
           key={c.slug}
           href={`/case/${c.slug}`}
-          title={c.title}
-          className="relative h-20 w-28 shrink-0 overflow-hidden rounded-lg bg-surface-muted transition-opacity hover:opacity-90"
+          className="w-28 shrink-0 transition-opacity hover:opacity-90"
         >
-          {c.image.src ? (
-            <Image
-              src={c.image.src}
-              alt={c.title}
-              fill
-              sizes="112px"
-              className="object-cover"
-              {...(c.image.blurDataURL
-                ? { placeholder: 'blur' as const, blurDataURL: c.image.blurDataURL }
-                : {})}
-            />
-          ) : (
-            <span className="flex h-full items-center justify-center px-2 text-center text-[11px] leading-tight text-muted-foreground">
-              {c.title}
-            </span>
-          )}
+          <span className="relative block h-20 w-28 overflow-hidden rounded-lg bg-surface-muted">
+            {c.image.src ? (
+              <Image
+                src={c.image.src}
+                alt={c.title}
+                fill
+                sizes="112px"
+                className="object-cover"
+                {...(c.image.blurDataURL
+                  ? { placeholder: 'blur' as const, blurDataURL: c.image.blurDataURL }
+                  : {})}
+              />
+            ) : (
+              <span className="flex h-full items-center justify-center px-2 text-center text-[11px] leading-tight text-muted-foreground">
+                {c.title}
+              </span>
+            )}
+          </span>
+          {/* чужие кейсы по обложке не опознаются — подпись обязательна */}
+          <span className="mt-1 line-clamp-1 block text-[11px] text-muted-foreground">
+            {c.title}
+          </span>
         </Link>
       ))}
     </div>
@@ -91,7 +96,7 @@ function ResponseCard({ r, owner }: { r: BriefResponseItem; owner: boolean }) {
       {r.priceEstimate ? (
         <p className="mt-2.5 text-sm">
           Предварительная оценка:{' '}
-          <span className="font-semibold">~{formatSom(r.priceEstimate)}</span>
+          <span className="font-semibold">≈ {formatSom(r.priceEstimate)}</span>
         </p>
       ) : null}
       <CaseThumbs cases={r.cases} />
@@ -119,15 +124,17 @@ export default async function BriefPage({ params }: { params: Promise<{ id: stri
 
   const { brief } = view
   const isOwner = view.role === 'owner'
+  const budget =
+    brief.budgetMin && brief.budgetMax ? formatBudgetRange(brief.budgetMin, brief.budgetMax) : null
   const meta = [
     brief.objectTypeLabel,
     brief.districtName,
-    brief.budgetMin && brief.budgetMax
-      ? formatBudgetRange(brief.budgetMin, brief.budgetMax).som
-      : null,
+    // денежная конвенция: сом + $-эквивалент, как на страницах кейсов
+    budget?.som ?? null,
+    budget?.usd ?? null,
     !isOwner ? `клиент: ${view.brief.clientName}` : null,
     timeAgo(brief.createdAt),
-  ].filter(Boolean)
+  ].filter((m): m is string => Boolean(m))
 
   return (
     <>
@@ -149,14 +156,22 @@ export default async function BriefPage({ params }: { params: Promise<{ id: stri
             <h1 className="font-display text-[28px] leading-[1.15] font-semibold tracking-tight sm:text-[32px]">
               {brief.title}
             </h1>
-            <p className="mt-2 text-[13px] text-muted-foreground">{meta.join(' · ')}</p>
+            {/* сегменты не рвутся внутри («4 200 000– / 4 600 000»), разделитель липнет к концу строки */}
+            <p className="mt-2 text-[13px] text-muted-foreground">
+              {meta.flatMap((m, i) => [
+                <span key={m} className="whitespace-nowrap">
+                  {i < meta.length - 1 ? `${m} ·` : m}
+                </span>,
+                i < meta.length - 1 ? ' ' : null,
+              ])}
+            </p>
           </div>
           {brief.status !== 'OPEN' ? (
             <Badge variant="neutral" size="md" className="shrink-0 sm:mt-1">
               Закрыт
             </Badge>
           ) : isOwner ? (
-            <div className="shrink-0 sm:mt-1">
+            <div className="-ml-4 shrink-0 sm:mt-1 sm:ml-0">
               <CloseBriefButton briefId={brief.id} />
             </div>
           ) : null}
@@ -204,7 +219,7 @@ export default async function BriefPage({ params }: { params: Promise<{ id: stri
               {view.myResponse.priceEstimate ? (
                 <p className="mt-2.5 text-sm">
                   Ваша оценка:{' '}
-                  <span className="font-semibold">~{formatSom(view.myResponse.priceEstimate)}</span>
+                  <span className="font-semibold">≈ {formatSom(view.myResponse.priceEstimate)}</span>
                 </p>
               ) : null}
               <CaseThumbs cases={view.myResponse.cases} />

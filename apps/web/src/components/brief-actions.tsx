@@ -69,39 +69,45 @@ export function BriefRespondForm({
             {myCases.map((c) => {
               const active = selected.includes(c.slug)
               return (
-                <button
-                  key={c.slug}
-                  type="button"
-                  onClick={() => toggleCase(c.slug)}
-                  aria-pressed={active}
-                  title={c.title}
-                  className={cn(
-                    'relative h-20 w-28 shrink-0 overflow-hidden rounded-lg border-2 transition-all',
-                    active ? 'border-accent' : 'border-transparent opacity-80 hover:opacity-100',
-                  )}
-                >
-                  {c.image.src ? (
-                    <Image
-                      src={c.image.src}
-                      alt={c.title}
-                      fill
-                      sizes="112px"
-                      className="object-cover"
-                      {...(c.image.blurDataURL
-                        ? { placeholder: 'blur' as const, blurDataURL: c.image.blurDataURL }
-                        : {})}
-                    />
-                  ) : (
-                    <span className="flex h-full items-center justify-center bg-surface-muted px-2 text-center text-[11px] leading-tight text-muted-foreground">
-                      {c.title}
-                    </span>
-                  )}
-                  {active ? (
-                    <span className="absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full bg-accent text-accent-foreground">
-                      <Check className="size-3.5" aria-hidden />
-                    </span>
-                  ) : null}
-                </button>
+                <div key={c.slug} className="w-28 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => toggleCase(c.slug)}
+                    aria-pressed={active}
+                    className={cn(
+                      'relative h-20 w-28 overflow-hidden rounded-lg border-2 transition-all',
+                      active
+                        ? 'border-accent'
+                        : selected.length > 0
+                          ? 'border-transparent opacity-70 hover:opacity-100'
+                          : 'border-transparent hover:opacity-90',
+                    )}
+                  >
+                    {c.image.src ? (
+                      <Image
+                        src={c.image.src}
+                        alt={c.title}
+                        fill
+                        sizes="112px"
+                        className="object-cover"
+                        {...(c.image.blurDataURL
+                          ? { placeholder: 'blur' as const, blurDataURL: c.image.blurDataURL }
+                          : {})}
+                      />
+                    ) : (
+                      <span className="flex h-full items-center justify-center bg-surface-muted px-2 text-center text-[11px] leading-tight text-muted-foreground">
+                        {c.title}
+                      </span>
+                    )}
+                    {active ? (
+                      <span className="absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full bg-accent text-accent-foreground">
+                        <Check className="size-3.5" aria-hidden />
+                      </span>
+                    ) : null}
+                  </button>
+                  {/* на таче title-тултип недоступен — подпись обязательна */}
+                  <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">{c.title}</p>
+                </div>
               )
             })}
           </div>
@@ -155,10 +161,12 @@ export function OpenChatButton({ responseId, accepted }: { responseId: string; a
   })
   return (
     <div>
+      {/* отклики — список равных: акцент несут имя/рейтинг/кейсы, кнопка всегда soft
+          (выбранного маркирует бейдж «Клиент открыл чат») */}
       <Button
-        variant={accepted ? 'soft' : 'primary'}
+        variant="soft"
         size="sm"
-        className="h-10"
+        className="h-11 sm:h-10"
         loading={accept.isPending}
         onClick={() => accept.mutate({ responseId })}
       >
@@ -181,17 +189,28 @@ export function CloseBriefButton({ briefId }: { briefId: string }) {
   })
   if (!arm) {
     return (
-      <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setArm(true)}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-11 text-muted-foreground sm:h-9"
+        onClick={() => setArm(true)}
+      >
         Закрыть бриф
       </Button>
     )
   }
   return (
     <span className="inline-flex items-center gap-1.5">
-      <Button variant="soft" size="sm" loading={close.isPending} onClick={() => close.mutate({ briefId })}>
+      <Button
+        variant="soft"
+        size="sm"
+        className="h-11 sm:h-9"
+        loading={close.isPending}
+        onClick={() => close.mutate({ briefId })}
+      >
         Точно закрыть
       </Button>
-      <Button variant="ghost" size="sm" onClick={() => setArm(false)}>
+      <Button variant="ghost" size="sm" className="h-11 sm:h-9" onClick={() => setArm(false)}>
         Отмена
       </Button>
     </span>

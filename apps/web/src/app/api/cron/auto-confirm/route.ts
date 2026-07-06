@@ -1,7 +1,10 @@
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { runAutoConfirm } from '@/server/auto-confirm'
 
 export const dynamic = 'force-dynamic'
+
+const sha = (s: string) => createHash('sha256').update(s).digest()
 
 /**
  * Крон авто-подтверждения (раз в час достаточно: точность дедлайна — дни).
@@ -10,7 +13,9 @@ export const dynamic = 'force-dynamic'
  */
 async function handle(req: Request) {
   const secret = process.env.CRON_SECRET
-  if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) {
+  const header = req.headers.get('authorization') ?? ''
+  // сравнение хэшей — константное по времени (как timingSafeEqual в OTP)
+  if (!secret || !timingSafeEqual(sha(header), sha(`Bearer ${secret}`))) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
   return NextResponse.json(await runAutoConfirm())

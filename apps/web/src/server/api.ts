@@ -8,6 +8,7 @@ import {
   canTransitionOrder,
   derivePriceRange,
   isValidScores,
+  quotaMonthStart,
   AUTO_CONFIRM_DAYS,
   type OrderActor,
   type OrderStatus,
@@ -165,7 +166,7 @@ const casesRouter = t.router({
           // сделка
           dealType: z.enum(['sale', 'rentOut', 'buyAssist']).optional(),
           propertyType: z.string().optional(),
-          price: z.number().int().positive().optional(),
+          price: z.number().int().positive().max(2_000_000_000).optional(),
           priceVisibility: z.enum(['exact', 'range', 'hidden']).default('range'),
           daysOnMarket: z.number().int().positive().max(999).optional(),
           // проект
@@ -730,8 +731,9 @@ const briefsRouter = t.router({
             .enum(['apartment', 'newBuild', 'house', 'commercial', 'land', 'other'])
             .default('apartment'),
           districtName: z.string().optional(),
-          budgetMin: z.number().int().positive().optional(),
-          budgetMax: z.number().int().positive().optional(),
+          // верхняя граница: int4 в БД — без неё гигантское число даёт 500 вместо 400
+          budgetMin: z.number().int().positive().max(2_000_000_000).optional(),
+          budgetMax: z.number().int().positive().max(2_000_000_000).optional(),
         })
         .refine((v) => !v.budgetMin || !v.budgetMax || v.budgetMin <= v.budgetMax, {
           message: 'Нижняя граница бюджета не может быть больше верхней.',
@@ -777,7 +779,7 @@ const briefsRouter = t.router({
           .trim()
           .min(10, 'Пара предложений о том, как вы решите задачу.')
           .max(2000),
-        priceEstimate: z.number().int().positive().optional(),
+        priceEstimate: z.number().int().positive().max(2_000_000_000).optional(),
         caseSlugs: z.array(z.string()).max(3).default([]),
       }),
     )
@@ -799,12 +801,10 @@ const briefsRouter = t.router({
       if (brief.status !== 'OPEN') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Бриф уже закрыт.' })
       }
-      // лимит тарифа — инвариант из core; тариф пока один (Free), PRO придёт с биллингом
-      const monthStart = new Date()
-      monthStart.setDate(1)
-      monthStart.setHours(0, 0, 0, 0)
+      // лимит тарифа — гейт из core (best-effort: гонка может дать +1, это ок);
+      // тариф пока один (Free), PRO придёт с биллингом
       const used = await prisma.briefResponse.count({
-        where: { specialistId: ctx.user.id, createdAt: { gte: monthStart } },
+        where: { specialistId: ctx.user.id, createdAt: { gte: quotaMonthStart() } },
       })
       const gate = canRespondToBrief('FREE', used)
       if (!gate.allowed) {
@@ -886,12 +886,14 @@ const briefsRouter = t.router({
             },
           },
         }))
-      if (response.status !== 'ACCEPTED') {
+      // гейт от двойного клика/двух вкладок: сообщение шлёт только тот запрос,
+      // который реально перевёл отклик в ACCEPTED (updateMany вместо read-then-write)
+      const claimed = await prisma.briefResponse.updateMany({
+        where: { id: response.id, status: { not: 'ACCEPTED' } },
+        data: { status: 'ACCEPTED' },
+      })
+      if (claimed.count === 1) {
         await prisma.$transaction([
-          prisma.briefResponse.update({
-            where: { id: response.id },
-            data: { status: 'ACCEPTED' },
-          }),
           prisma.message.create({
             data: {
               threadId: thread.id,

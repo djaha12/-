@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
+import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { trpc } from '@/lib/trpc'
@@ -92,7 +93,7 @@ export function BriefForm({ districts }: { districts: Array<{ slug: string; name
               onClick={() => setObjectType(t.key)}
               aria-pressed={objectType === t.key}
               className={cn(
-                'h-10 rounded-full border px-4 text-sm transition-colors',
+                'h-11 rounded-full border px-4 text-sm transition-colors sm:h-10',
                 objectType === t.key
                   ? 'border-transparent bg-accent-soft font-medium text-accent-soft-foreground'
                   : 'border-border text-muted-foreground hover:border-border-strong hover:text-foreground',
@@ -106,18 +107,25 @@ export function BriefForm({ districts }: { districts: Array<{ slug: string; name
 
       <label className="block">
         <span className="mb-1.5 block text-sm font-semibold">Район</span>
-        <select
-          value={districtName}
-          onChange={(e) => setDistrictName(e.target.value)}
-          className="h-11 w-full appearance-none rounded-xl border border-border bg-surface px-4 text-[15px] transition-colors hover:border-border-strong focus:border-border-strong focus:outline-none"
-        >
-          <option value="">Весь Бишкек</option>
-          {districts.map((d) => (
-            <option key={d.slug} value={d.name}>
-              {d.name}
-            </option>
-          ))}
-        </select>
+        {/* appearance-none убирает нативную стрелку — возвращаем аффорданс сами */}
+        <span className="relative block">
+          <select
+            value={districtName}
+            onChange={(e) => setDistrictName(e.target.value)}
+            className="h-11 w-full appearance-none rounded-xl border border-border bg-surface pr-10 pl-4 text-[15px] transition-colors hover:border-border-strong focus:border-border-strong focus:outline-none"
+          >
+            <option value="">Весь Бишкек</option>
+            {districts.map((d) => (
+              <option key={d.slug} value={d.name}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+        </span>
       </label>
 
       <div>

@@ -29,3 +29,14 @@ export function canRespondToBrief(plan: Plan, responsesThisMonth: number): Limit
     reason: `Лимит откликов на Free — ${limit} в месяц. Новые отклики будут доступны с началом месяца или на PRO.`,
   }
 }
+
+/**
+ * Начало календарного месяца по Бишкеку (UTC+6) — единое окно квоты откликов
+ * для мутации и показа остатка. На UTC-сервере граница месяца иначе съезжает на 6 ч.
+ */
+export function quotaMonthStart(now: Date = new Date(), tzOffsetMinutes = 6 * 60): Date {
+  const shifted = new Date(now.getTime() + tzOffsetMinutes * 60_000)
+  return new Date(
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), 1) - tzOffsetMinutes * 60_000,
+  )
+}

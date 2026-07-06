@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { canPublishCase, canRespondToBrief } from './plans'
+import { canPublishCase, canRespondToBrief, quotaMonthStart } from './plans'
 import { derivePriceRange } from './pricing'
 import { canTransitionOrder, ORDER_TRANSITIONS, TERMINAL_ORDER_STATUSES, type OrderStatus } from './orders'
 import { canSubmitReview, isValidScores, overallScore } from './reviews'
+import { CONTACT_PLACEHOLDER, hideContacts } from './contacts'
 
 describe('лимиты тарифов', () => {
   it('Free: 5-й опубликованный кейс — последний разрешённый', () => {
@@ -124,5 +125,37 @@ describe('отзывы — антинакрутка by design', () => {
   })
   it('общая оценка — среднее четырёх подшкал', () => {
     expect(overallScore({ quality: 5, timing: 4, communication: 5, budget: 4 })).toBe(4.5)
+  })
+})
+
+describe('автоскрытие контактов (решение 03/7)', () => {
+  it('телефоны с кодом страны прячутся во всех написаниях', () => {
+    for (const t of ['+996 555 123 456', '996555123456', '+996(555)12-34-56']) {
+      expect(hideContacts(`Звоните: ${t}!`)).toBe(`Звоните: ${CONTACT_PLACEHOLDER}!`)
+    }
+  })
+  it('локальный формат 0XXX-цифры прячется', () => {
+    expect(hideContacts('мой номер 0555 12 34 56, жду')).toContain(CONTACT_PLACEHOLDER)
+    expect(hideContacts('пишите на 0700123456')).toContain(CONTACT_PLACEHOLDER)
+  })
+  it('ники мессенджеров прячутся', () => {
+    expect(hideContacts('телеграм @nurlan_kg — быстрее')).toContain(CONTACT_PLACEHOLDER)
+  })
+  it('цены, площади и даты НЕ трогаются', () => {
+    const text = 'Квартира 58 м², дом 2012 года, продаю за 4 200 000 сом (торг до 4 600 000).'
+    expect(hideContacts(text)).toBe(text)
+  })
+})
+
+describe('окно квоты откликов', () => {
+  it('начало месяца считается по Бишкеку (UTC+6)', () => {
+    // 30 июня 23:00 UTC = 1 июля 05:00 Бишкека → окно июля уже открыто
+    expect(quotaMonthStart(new Date('2026-06-30T23:00:00Z')).toISOString()).toBe(
+      '2026-06-30T18:00:00.000Z',
+    )
+    // 30 июня 17:00 UTC = 30 июня 23:00 Бишкека → ещё июнь
+    expect(quotaMonthStart(new Date('2026-06-30T17:00:00Z')).toISOString()).toBe(
+      '2026-05-31T18:00:00.000Z',
+    )
   })
 })
