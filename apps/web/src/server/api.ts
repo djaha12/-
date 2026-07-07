@@ -25,6 +25,7 @@ import {
 import { prisma, Prisma, type OrderState } from '@atelier/db'
 import { recalcDealStats, recalcReviewAggregate } from './aggregates'
 import { notifySafe } from './notify'
+import { otpGatewayEnabled, sendOtpViaGateway } from './otp-gateway'
 import { getProStatus, getUserPlan } from './plan'
 import { track, trackSafe } from './track'
 import {
@@ -99,18 +100,34 @@ const authRouter = t.router({
         })
       }
       const code = generateOtpCode()
-      await prisma.otpCode.create({
+      const otp = await prisma.otpCode.create({
         data: {
           phone: input.phone,
           codeHash: sha256(code),
           expiresAt: new Date(Date.now() + OTP_TTL_MIN * 6e4),
         },
       })
-      // M6: Telegram Gateway / SMS. Код на экран: в dev — всем; в песочнице
-      // (OTP_DEV_MODE=1) — ТОЛЬКО тестовым номерам сида, не любому телефону.
-      // Гейт по VERCEL_ENV, НЕ по NODE_ENV: на Vercel preview NODE_ENV=production,
-      // но песочница там нужна; на публичном Production песочница ЗАПРЕЩЕНА
-      // (иначе вход модератором через засеянный тест-номер).
+
+      // Боевая доставка: если настроен Telegram Gateway — шлём код через него и
+      // НЕ показываем на экране. При недоставке снимаем запись (не наказываем
+      // rate-limit'ом за сбой канала) и просим повторить.
+      if (otpGatewayEnabled()) {
+        const sent = await sendOtpViaGateway(input.phone, code, OTP_TTL_MIN * 60)
+        if (!sent.ok) {
+          await prisma.otpCode.delete({ where: { id: otp.id } }).catch(() => {})
+          console.error('[otp:gateway]', input.phone, sent.error)
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Не удалось отправить код. Попробуйте ещё раз через минуту.',
+          })
+        }
+        return { devCode: undefined }
+      }
+
+      // Без Gateway — код на экран: в dev — всем; в песочнице (OTP_DEV_MODE=1) —
+      // ТОЛЬКО тестовым номерам сида. Гейт по VERCEL_ENV, НЕ по NODE_ENV: на Vercel
+      // preview NODE_ENV=production, но песочница там нужна; на публичном Production
+      // песочница ЗАПРЕЩЕНА (иначе вход модератором через засеянный тест-номер).
       const isDev = process.env.NODE_ENV !== 'production'
       const sandboxAllowed = process.env.VERCEL_ENV !== 'production'
       const isSandboxTestPhone =

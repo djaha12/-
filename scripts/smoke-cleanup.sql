@@ -44,9 +44,11 @@ DELETE FROM "Session" WHERE "userId" IN (SELECT id FROM smoke_users);
 -- аналитика (M8): события тест-юзеров + гостевые маркеры смоука (actorId у гостя NULL)
 DELETE FROM "AnalyticsOutbox" WHERE "actorId" IN (SELECT id FROM smoke_users)
    OR props->>'slug' LIKE 'guest-%' OR props->>'slug' LIKE 'burst-%';
--- OtpCode: и смоук-номера (880%), и сид-номера, в которые смоуки логинятся
--- (модератор/спец/клиент) — иначе за прогон копится > OTP_MAX_PER_HOUR
-DELETE FROM "OtpCode" WHERE phone LIKE '+99670000%' OR phone LIKE '+99670001%';
+-- OtpCode: смоук-номера (+9967000880xx) И сид-номера, в которые смоуки логинятся
+-- (+99670000xx модератор/спец/клиент, +99670001xx клиент) — иначе за прогон
+-- копится > OTP_MAX_PER_HOUR и логин начинает падать
+DELETE FROM "OtpCode"
+ WHERE phone LIKE '+9967000880%' OR phone LIKE '+99670000%' OR phone LIKE '+99670001%';
 DELETE FROM "User" WHERE id IN (SELECT id FROM smoke_users);
 COMMIT;
 SELECT count(*) AS leftover FROM "User" WHERE phone LIKE '+9967000880%';
