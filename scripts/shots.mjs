@@ -62,7 +62,8 @@ async function loginTestUser(base, phone) {
   }
   const r1 = await call('auth.requestOtp', { phone })
   const code = r1.body?.result?.data?.json?.devCode
-  if (!code) throw new Error('OTP_DEV_MODE выключен — не могу залогиниться для скриншотов')
+  if (!code)
+    throw new Error(`нет devCode (OTP_DEV_MODE выключен или rate-limit): ${JSON.stringify(r1.body)}`)
   const r2 = await call('auth.verifyOtp', { phone, code })
   const m = r2.setCookie?.match(/atelier_session=([^;]+)/)
   if (!m) throw new Error('Сессия не установилась')

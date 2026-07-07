@@ -166,9 +166,11 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* короткие страницы: футер прижат к низу вьюпорта */
+  /* короткие страницы: футер прижат к низу вьюпорта; width — иначе
+     mx-auto на flex-оси отменяет stretch и main сжимается до контента */
   body > main {
     flex: 1;
+    width: 100%;
   }
 
   ::selection {
