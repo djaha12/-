@@ -2,6 +2,7 @@ import 'server-only'
 import { canTransitionOrder } from '@atelier/core'
 import { prisma } from '@atelier/db'
 import { recalcReviewAggregate } from './aggregates'
+import { notifySafe } from './notify'
 import { track } from './track'
 
 /**
@@ -16,7 +17,7 @@ export async function runAutoConfirm(now = new Date()) {
   }
   const due = await prisma.order.findMany({
     where: { state: 'DELIVERED', autoConfirmAt: { lte: now } },
-    select: { id: true, specialistId: true },
+    select: { id: true, specialistId: true, clientId: true, title: true, threadId: true },
   })
   let completed = 0
   const touchedSpecialists = new Set<string>()
@@ -48,6 +49,17 @@ export async function runAutoConfirm(now = new Date()) {
       if (claimed === 1) {
         completed++
         touchedSpecialists.add(o.specialistId)
+        const url = o.threadId ? `/messages/${o.threadId}` : undefined
+        await notifySafe(o.clientId, 'order_completed', {
+          title: 'Заказ завершён автоматически',
+          body: `${o.title} — вы не ответили 7 дней после сдачи. Отзыв всё ещё можно оставить.`,
+          url,
+        })
+        await notifySafe(o.specialistId, 'order_completed', {
+          title: 'Заказ завершён (авто-подтверждение)',
+          body: o.title,
+          url,
+        })
       }
     } catch (e) {
       // один сломанный заказ не роняет батч — дочистится следующим прогоном

@@ -5,6 +5,7 @@ import superjson from 'superjson'
 import { z } from 'zod'
 import {
   canModerate,
+  canPublishCase,
   canRespondToBrief,
   canSubmitReview,
   canTransitionOrder,
@@ -20,6 +21,8 @@ import {
 } from '@atelier/core'
 import { prisma, Prisma, type OrderState } from '@atelier/db'
 import { recalcDealStats, recalcReviewAggregate } from './aggregates'
+import { notifySafe } from './notify'
+import { getProUntil, getUserPlan } from './plan'
 import { track, trackSafe } from './track'
 import {
   createSession,
@@ -253,6 +256,21 @@ const casesRouter = t.router({
 
       // trust-tiers (решение 03/4): первые кейсы новичка — через премодерацию,
       // доверенные публикуются сразу
+      // лимит тарифа — предикат публикации (Free 5; pending считаем — иначе
+      // лимит обходится очередью модерации). Инвариант из core.
+      const plan = await getUserPlan(ctx.user.id)
+      const publishedCount = await prisma.case.count({
+        where: {
+          authorId: ctx.user.id,
+          status: { in: ['PUBLISHED', 'PENDING_REVIEW'] },
+          deletedAt: null,
+        },
+      })
+      const planGate = canPublishCase(plan, publishedCount)
+      if (!planGate.allowed) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: planGate.reason })
+      }
+
       const pending = needsPremoderation(ctx.user.trustTier)
       if (pending) {
         // новичок не заливает очередь: сначала проверка первых кейсов
@@ -445,6 +463,11 @@ const leadsRouter = t.router({
           withCase: Boolean(aboutCase),
         }),
       ])
+      await notifySafe(profile.userId, 'lead_new', {
+        title: 'Новая заявка',
+        body: `${ctx.user.displayName ?? 'Клиент'}: ${input.text.slice(0, 120)}`,
+        url: `/messages/${thread.id}`,
+      })
       return { threadId: thread.id }
     }),
 })
@@ -578,6 +601,11 @@ const ordersRouter = t.router({
           },
         })
         await trackSafe('order_proposed', ctx.user.id, { orderId: order.id })
+        await notifySafe(other.userId, 'order_proposed', {
+          title: 'Специалист предложил условия заказа',
+          body: input.title,
+          url: `/messages/${thread.id}`,
+        })
         return { orderId: order.id }
       } catch (e) {
         // partial unique index order_one_active_per_thread: гонка двойного propose
@@ -646,6 +674,37 @@ const ordersRouter = t.router({
         throw e
       }
       if (to === 'completed') await recalcReviewAggregate(order.specialistId)
+      const threadUrl = order.threadId ? `/messages/${order.threadId}` : undefined
+      if (to === 'agreed') {
+        await notifySafe(order.specialistId, 'order_agreed', {
+          title: 'Клиент подтвердил условия',
+          body: order.title,
+          url: threadUrl,
+        })
+      } else if (to === 'delivered') {
+        await notifySafe(order.clientId, 'order_delivered', {
+          title: 'Работа сдана — подтвердите приёмку',
+          body: order.title,
+          url: threadUrl,
+        })
+      } else if (to === 'completed') {
+        await notifySafe(order.clientId, 'order_completed', {
+          title: 'Заказ завершён — поделитесь отзывом',
+          body: order.title,
+          url: threadUrl,
+        })
+        await notifySafe(order.specialistId, 'order_completed', {
+          title: 'Заказ завершён',
+          body: order.title,
+          url: threadUrl,
+        })
+      } else if (to === 'cancelled') {
+        await notifySafe(actor === 'client' ? order.specialistId : order.clientId, 'order_cancelled', {
+          title: 'Заказ отменён',
+          body: order.title,
+          url: threadUrl,
+        })
+      }
       return { state: to }
     }),
 
@@ -764,6 +823,16 @@ const reviewsRouter = t.router({
       }
       await recalcReviewAggregate(order.specialistId)
       await trackSafe('review_created', ctx.user.id, { orderId: order.id })
+      const specProfile = await prisma.specialistProfile.findUnique({
+        where: { userId: order.specialistId },
+        select: { slug: true },
+      })
+      const overall = (input.quality + input.timing + input.communication + input.budget) / 4
+      await notifySafe(order.specialistId, 'review_new', {
+        title: `Новый отзыв — ${overall.toFixed(1)} из 5`,
+        body: input.text.slice(0, 120),
+        url: specProfile ? `/s/${specProfile.slug}?tab=reviews` : undefined,
+      })
       return { ok: true }
     }),
 })
@@ -871,12 +940,12 @@ const briefsRouter = t.router({
       if (brief.status !== 'OPEN') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Бриф уже закрыт.' })
       }
-      // лимит тарифа — гейт из core (best-effort: гонка может дать +1, это ок);
-      // тариф пока один (Free), PRO придёт с биллингом
+      // лимит тарифа — гейт из core (best-effort: гонка может дать +1, это ок)
+      const plan = await getUserPlan(ctx.user.id)
       const used = await prisma.briefResponse.count({
         where: { specialistId: ctx.user.id, createdAt: { gte: quotaMonthStart() } },
       })
-      const gate = canRespondToBrief('FREE', used)
+      const gate = canRespondToBrief(plan, used)
       if (!gate.allowed) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: gate.reason })
       }
@@ -917,6 +986,11 @@ const briefsRouter = t.router({
         await trackSafe('brief_response_created', ctx.user.id, {
           briefId: brief.id,
           withCases: uniqueSlugs.length,
+        })
+        await notifySafe(brief.clientId, 'brief_response', {
+          title: 'Новый отклик на ваш бриф',
+          body: `${ctx.user.displayName ?? 'Специалист'} — «${brief.title}»`,
+          url: `/briefs/${brief.id}`,
         })
         return { id: created.id }
       } catch (e) {
@@ -981,6 +1055,11 @@ const briefsRouter = t.router({
           }),
           track(prisma, 'brief_accepted', ctx.user.id, { briefId: response.briefId }),
         ])
+        await notifySafe(response.specialistId, 'brief_accepted', {
+          title: 'Клиент открыл чат по вашему отклику',
+          body: response.brief.title,
+          url: `/messages/${thread.id}`,
+        })
       }
       return { threadId: thread.id }
     }),
@@ -1140,6 +1219,11 @@ const adminRouter = t.router({
         }
       }
       if (target.dealType) await recalcDealStats(target.authorId)
+      await notifySafe(target.authorId, 'case_approved', {
+        title: 'Кейс опубликован',
+        body: target.title,
+        url: `/case/${target.slug}`,
+      })
       return { ok: true }
     }),
 
@@ -1283,6 +1367,75 @@ const adminRouter = t.router({
     }),
 })
 
+/* ============================================================================
+ * M6: монетизация (промокоды → PRO) и настройки уведомлений.
+ * Оплата картой — Фаза 1.5 (PaymentProvider: Mbank/O!Деньги/Элсом), до неё
+ * PRO активируется промокодом или админом вручную.
+ * ==========================================================================*/
+
+const promoRouter = t.router({
+  redeem: authedProcedure
+    .input(z.object({ code: z.string().trim().min(3).max(60) }))
+    .mutation(async ({ ctx, input }) => {
+      const code = await prisma.promoCode.findUnique({
+        where: { code: input.code.toUpperCase() },
+        include: { plan: true },
+      })
+      if (!code || !code.isActive || (code.expiresAt && code.expiresAt < new Date())) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Код не найден или истёк.' })
+      }
+      const activeUntil = await getProUntil(ctx.user.id)
+      if (activeUntil) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `PRO уже активен до ${activeUntil.toLocaleDateString('ru-RU')} — код можно применить после.`,
+        })
+      }
+      const expiresAt = new Date(Date.now() + code.durationDays * 864e5)
+      const redeemed = await prisma.$transaction(async (tx) => {
+        // атомарный расход: гонка двух redeem не перерасходует код
+        const u = await tx.promoCode.updateMany({
+          where: { id: code.id, isActive: true, redeemedCount: { lt: code.maxRedemptions } },
+          data: { redeemedCount: { increment: 1 } },
+        })
+        if (u.count === 0) return false
+        await tx.entitlement.create({
+          data: {
+            userId: ctx.user.id,
+            planId: code.planId,
+            status: 'ACTIVE',
+            source: 'PROMO',
+            promoCodeId: code.id,
+            expiresAt,
+          },
+        })
+        await tx.auditLog.create({
+          data: {
+            actorId: ctx.user.id,
+            action: 'promo.redeem',
+            entityType: 'PROMO_CODE',
+            entityId: code.id,
+            payload: { code: code.code, days: code.durationDays },
+          },
+        })
+        await track(tx, 'promo_redeemed', ctx.user.id, { code: code.code, days: code.durationDays })
+        return true
+      })
+      if (!redeemed) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Код уже использован максимальное число раз.' })
+      }
+      return { plan: code.plan.code, until: expiresAt }
+    }),
+})
+
+const notificationsRouter = t.router({
+  /** Отвязать Telegram (эквивалент /stop в боте) */
+  unlinkTelegram: authedProcedure.mutation(async ({ ctx }) => {
+    await prisma.user.update({ where: { id: ctx.user.id }, data: { telegramChatId: null } })
+    return { ok: true }
+  }),
+})
+
 export const appRouter = t.router({
   auth: authRouter,
   cases: casesRouter,
@@ -1294,6 +1447,8 @@ export const appRouter = t.router({
   briefs: briefsRouter,
   reports: reportsRouter,
   admin: adminRouter,
+  promo: promoRouter,
+  notifications: notificationsRouter,
 })
 
 export type AppRouter = typeof appRouter

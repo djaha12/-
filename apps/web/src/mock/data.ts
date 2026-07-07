@@ -41,6 +41,8 @@ export interface Specialist {
   bio: string
   /** только у риелторов */
   dealStats?: DealStats
+  /** активный PRO-тариф (M6): приоритет в каталоге и бейдж */
+  pro?: boolean
 }
 
 export type DealType = 'sale' | 'rentOut' | 'buyAssist'

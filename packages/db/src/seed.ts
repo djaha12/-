@@ -665,10 +665,93 @@ async function seedAnalytics() {
   console.log('✓ Аналитика: демо-событий', events.length)
 }
 
+/** M6: тарифы, промокод запуска и демо-уведомления. Top-up-безопасно. */
+async function seedMonetization() {
+  // планы — upsert по коду: обязательны для promo.redeem и getUserPlan
+  const free = await prisma.plan.upsert({
+    where: { code: 'FREE' },
+    update: {},
+    create: {
+      code: 'FREE',
+      name: 'Free',
+      priceMonthly: 0,
+      maxPublishedCases: 5,
+      maxBriefResponsesMonthly: 10,
+    },
+  })
+  void free
+  const pro = await prisma.plan.upsert({
+    where: { code: 'PRO' },
+    update: {},
+    create: {
+      code: 'PRO',
+      name: 'PRO',
+      priceMonthly: 990,
+      maxPublishedCases: null,
+      maxBriefResponsesMonthly: null,
+      hasAnalytics: true,
+      hasPriorityFeed: true,
+      hasShowcaseMode: true,
+    },
+  })
+  await prisma.promoCode.upsert({
+    where: { code: 'ATELIER-LAUNCH' },
+    update: {},
+    create: {
+      code: 'ATELIER-LAUNCH',
+      planId: pro.id,
+      durationDays: 30,
+      maxRedemptions: 100,
+    },
+  })
+
+  if ((await prisma.notification.count()) === 0) {
+    const nurlan = await prisma.user.findFirst({ where: { displayName: 'Нурлан Абдыкадыров' } })
+    const gulmira = await prisma.user.findFirst({ where: { displayName: 'Гульмира А.' } })
+    const thread = await prisma.chatThread.findFirst({ orderBy: { lastMessageAt: 'desc' } })
+    const url = thread ? `/messages/${thread.id}` : undefined
+    if (nurlan) {
+      await prisma.notification.createMany({
+        data: [
+          {
+            userId: nurlan.id,
+            type: 'lead_new',
+            title: 'Новая заявка',
+            body: 'Гульмира А.: Продаём трёшку в Джале, 82 м². Хотим успеть до сентября — реально?',
+            payload: url ? { url } : undefined,
+            createdAt: new Date(Date.now() - 26 * 36e5),
+          },
+          {
+            userId: nurlan.id,
+            type: 'brief_response',
+            title: 'Клиент открыл чат по вашему отклику',
+            body: 'Продать двушку 58 м² в Аламедине-1',
+            createdAt: new Date(Date.now() - 5 * 36e5),
+          },
+        ],
+      })
+    }
+    if (gulmira) {
+      await prisma.notification.create({
+        data: {
+          userId: gulmira.id,
+          type: 'order_delivered',
+          title: 'Работа сдана — подтвердите приёмку',
+          body: 'Продажа трёшки в Джале, 82 м²',
+          payload: url ? { url } : undefined,
+          createdAt: new Date(Date.now() - 3 * 36e5),
+        },
+      })
+    }
+  }
+  console.log('✓ Тарифы: Free/PRO · промокод ATELIER-LAUNCH · уведомлений:', await prisma.notification.count())
+}
+
 main()
   .then(seedBriefs)
   .then(seedModeration)
   .then(seedAnalytics)
+  .then(seedMonetization)
   .catch((e) => {
     console.error(e)
     process.exit(1)

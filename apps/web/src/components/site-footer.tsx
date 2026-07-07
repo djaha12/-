@@ -35,7 +35,7 @@ export function SiteFooter({ className }: { className?: string }) {
               {col.links.map((l) => (
                 <li key={l}>
                   <Link
-                    href="#"
+                    href={l === 'Тарифы' ? '/pro' : '#'}
                     className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                   >
                     {l}

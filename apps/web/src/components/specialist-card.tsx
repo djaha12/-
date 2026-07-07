@@ -61,6 +61,11 @@ export function SpecialistCard({
           <p className="flex items-center gap-1.5 text-[17px] font-semibold">
             <span className="truncate">{s.name}</span>
             {s.verified ? <VerifiedBadge /> : null}
+            {s.pro ? (
+              <span className="rounded-full border border-border-strong px-1.5 py-px text-[10px] font-semibold tracking-wide text-muted-foreground">
+                PRO
+              </span>
+            ) : null}
           </p>
           <p className="mt-0.5 truncate text-sm text-muted-foreground">
             {s.profession}

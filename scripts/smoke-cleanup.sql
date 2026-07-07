@@ -1,6 +1,15 @@
 -- Очистка смоук-артефактов (тестовые номера +9967000880xx)
 BEGIN;
 CREATE TEMP TABLE smoke_users AS SELECT id FROM "User" WHERE phone LIKE '+9967000880%';
+-- уведомления и тарифы (M6); использованные тест-прогонами промо-активации
+-- возвращаем коду (redeemedCount), чтобы дев-код не истощался
+UPDATE "PromoCode" pc SET "redeemedCount" = GREATEST(0, pc."redeemedCount" - sub.n)
+FROM (SELECT "promoCodeId", count(*) n FROM "Entitlement"
+      WHERE "userId" IN (SELECT id FROM smoke_users) AND "promoCodeId" IS NOT NULL
+      GROUP BY "promoCodeId") sub
+WHERE pc.id = sub."promoCodeId";
+DELETE FROM "Entitlement" WHERE "userId" IN (SELECT id FROM smoke_users);
+DELETE FROM "Notification" WHERE "userId" IN (SELECT id FROM smoke_users);
 -- модерация и жалобы (M5)
 DELETE FROM "Report" WHERE "reporterId" IN (SELECT id FROM smoke_users)
    OR "targetId" IN (SELECT id FROM "Case" WHERE "authorId" IN (SELECT id FROM smoke_users))

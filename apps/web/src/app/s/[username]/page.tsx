@@ -144,6 +144,11 @@ export default async function ProfilePage({
                 <h1 className="flex items-center gap-2 font-display text-[28px] font-semibold tracking-tight sm:text-4xl">
                   {s.name}
                   {s.verified ? <VerifiedBadge className="text-[20px] sm:text-[24px]" /> : null}
+                  {s.pro ? (
+                    <Badge variant="outline" size="sm" className="translate-y-0.5 font-sans tracking-wide">
+                      PRO
+                    </Badge>
+                  ) : null}
                 </h1>
                 <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] text-muted-foreground">
                   <span>

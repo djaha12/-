@@ -2,6 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { canModerate, hideContacts, quotaMonthStart, PLAN_LIMITS } from '@atelier/core'
 import { prisma, type Prisma, type Specialization } from '@atelier/db'
+import { getProUserIds } from './plan'
 import type { CaseItem, DealInfo, DealType, MockImage, Review, Specialist } from '@/mock/data'
 
 /**
@@ -222,19 +223,24 @@ export async function getSpecialists(
       byAuthor.set(c.authorId, list)
     }
   }
+  // PRO-приоритет (M6): один запрос на весь список
+  const proIds = await getProUserIds(rows.map((r) => r.userId))
   const result = rows.map((row) => ({
-    specialist: toSpecialist(row),
+    specialist: { ...toSpecialist(row), pro: proIds.has(row.userId) },
     thumbs: (byAuthor.get(row.userId) ?? []).map((c) => ({
       id: c.id,
       title: c.title,
       image: toImage(c.coverImage!),
     })),
   }))
-  // риелторы первыми, пустые портфолио в конец, дальше рейтинг
+  // пустые портфолио в конец, затем PRO, затем риелторы, дальше рейтинг
   return result.sort((a, b) => {
     const aEmpty = a.thumbs.length === 0 ? 1 : 0
     const bEmpty = b.thumbs.length === 0 ? 1 : 0
     if (aEmpty !== bEmpty) return aEmpty - bEmpty
+    const aPro = a.specialist.pro ? 1 : 0
+    const bPro = b.specialist.pro ? 1 : 0
+    if (aPro !== bPro) return bPro - aPro
     const aR = a.specialist.dealStats ? 1 : 0
     const bR = b.specialist.dealStats ? 1 : 0
     if (aR !== bR) return bR - aR
@@ -273,8 +279,9 @@ export const getSpecialist = cache(async function getSpecialist(slug: string): P
   ])
 
   const MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь']
+  const proIds = await getProUserIds([row.userId])
   return {
-    specialist: toSpecialist(row),
+    specialist: { ...toSpecialist(row), pro: proIds.has(row.userId) },
     cases: caseRows.map(toCaseItem),
     reviews: reviewRows.map((r) => ({
       id: r.id,
@@ -851,4 +858,45 @@ export async function getModerationQueue(): Promise<{
       }
     }),
   }
+}
+
+/* ============================================================================
+ * M6: уведомления (чтение) — центр в /notifications, счётчик в шапке.
+ * ==========================================================================*/
+
+export interface NotificationItem {
+  id: string
+  type: string
+  title: string
+  body: string | null
+  url: string | null
+  createdAt: Date
+  /** непрочитано на момент открытия страницы (для точек в списке) */
+  wasUnread: boolean
+}
+
+export async function getUnreadNotificationsCount(userId: string): Promise<number> {
+  return prisma.notification.count({ where: { userId, readAt: null } })
+}
+
+/** Список уведомлений; открытие страницы честно помечает всё прочитанным */
+export async function getNotifications(userId: string): Promise<NotificationItem[]> {
+  const rows = await prisma.notification.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  })
+  await prisma.notification.updateMany({
+    where: { userId, readAt: null },
+    data: { readAt: new Date() },
+  })
+  return rows.map((n) => ({
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    body: n.body,
+    url: (n.payload as { url?: string } | null)?.url ?? null,
+    createdAt: n.createdAt,
+    wasUnread: n.readAt == null,
+  }))
 }

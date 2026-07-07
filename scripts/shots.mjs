@@ -43,6 +43,10 @@ const ROUTES = [
   { name: 'admin', path: '/admin', auth: 'mod' },
   // M7: дашборд владельца
   { name: 'admin-stats', path: '/admin/stats', auth: 'mod' },
+  // M6: уведомления и тарифы
+  { name: 'notifications', path: '/notifications', auth: true },
+  { name: 'settings-notifications', path: '/settings/notifications', auth: 'spec' },
+  { name: 'pro', path: '/pro', auth: 'spec' },
   { name: 'dev-ui', path: '/dev/ui' },
 ]
 
@@ -106,7 +110,12 @@ if (!process.env.SHOTS_BASE_URL) {
     cwd: root,
     stdio: 'ignore',
     detached: true,
-    env: { ...process.env, OTP_DEV_MODE: '1' },
+    env: {
+      ...process.env,
+      OTP_DEV_MODE: '1',
+      NEXT_PUBLIC_TELEGRAM_BOT: 'atelier_demo_bot',
+      TELEGRAM_WEBHOOK_SECRET: 'shots-tg',
+    },
   })
 }
 

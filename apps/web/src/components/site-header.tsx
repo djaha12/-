@@ -1,14 +1,16 @@
 import Link from 'next/link'
-import { Bookmark, MapPin, Menu, MessageCircle, Search, ShieldCheck } from 'lucide-react'
+import { Bell, Bookmark, MapPin, Menu, MessageCircle, Search, ShieldCheck } from 'lucide-react'
 import { canModerate } from '@atelier/core'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { LogoutButton } from '@/components/logout-button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { getSessionUser } from '@/server/auth'
+import { getUnreadNotificationsCount } from '@/server/data'
 
 export async function SiteHeader() {
   const user = await getSessionUser()
+  const unread = user ? await getUnreadNotificationsCount(user.id) : 0
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
@@ -57,13 +59,14 @@ export async function SiteHeader() {
               <Search />
             </Link>
           </Button>
+          {/* город пока один — на мобильном ряд контролов дороже декоративной кнопки */}
           <Button
             variant="ghost"
             size="sm"
-            className="gap-1.5 text-muted-foreground max-md:h-11 max-sm:px-2.5"
+            className="gap-1.5 text-muted-foreground max-md:hidden"
           >
             <MapPin aria-hidden />
-            <span className="max-[400px]:sr-only">Бишкек</span>
+            Бишкек
           </Button>
           <ThemeToggle />
           {user ? (
@@ -76,6 +79,19 @@ export async function SiteHeader() {
                   </Link>
                 </Button>
               ) : null}
+              <Button asChild variant="ghost" size="icon" aria-label="Уведомления" className="relative">
+                <Link href="/notifications">
+                  <Bell />
+                  {unread > 0 ? (
+                    <span
+                      className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-accent-foreground"
+                      aria-label={`Непрочитанных: ${unread}`}
+                    >
+                      {unread > 9 ? '9+' : unread}
+                    </span>
+                  ) : null}
+                </Link>
+              </Button>
               <Button asChild variant="ghost" size="icon" aria-label="Сообщения">
                 <Link href="/messages">
                   <MessageCircle />

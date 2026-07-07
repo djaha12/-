@@ -201,6 +201,30 @@ Dars делегировал решения по docs/01-questions.md: «дела
 - Смоук M7 — scripts/smoke-m7.mjs (17 проверок: sitemap/robots/OG/JSON-LD/canonical/
   события/гарды дашборда).
 
+## §20. M6 — уведомления и монетизация (07.2026)
+- In-app центр (Notification) — источник истины; Telegram — канал доставки. Матрица:
+  заявки, отклики/принятия брифов, статусы заказов (условия/сдан/завершён/отменён),
+  отзывы, решения модерации. Сообщения чата поштучно НЕ шлём — дайджест придёт с PWA-push.
+  notifySafe: сбой канала никогда не роняет доменный поток.
+- Telegram без отдельного сервиса: бот на вебхуке (/api/telegram/webhook, fail-closed по
+  X-Telegram-Bot-Api-Secret-Token), уведомления — прямой sendMessage. Привязка deep-link
+  t.me/<bot>?start=<токен>; токен = userId+HMAC (хранить нечего), /stop отвязывает.
+  Env: TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, NEXT_PUBLIC_TELEGRAM_BOT (runtime,
+  серверные компоненты), опц. TELEGRAM_LINK_SECRET. Без токена всё деградирует в in-app.
+- Монетизация: тарифы — строки Plan (Free/PRO) + Entitlement; лимиты Free (5 кейсов,
+  10 откликов/мес) ВКЛЮЧЕНЫ по-настоящему через core (canPublishCase считает
+  PUBLISHED+PENDING_REVIEW — очередь модерации лимит не обходит). Grandfathering:
+  при истечении PRO опубликованное сверх лимита остаётся, блокируется только новое.
+- PRO даёт: безлимит кейсов и откликов, приоритет в каталоге (после «пустых портфолио»,
+  до сортировки по рейтингу), бейдж PRO в каталоге и на профиле.
+- Оплата картой — Фаза 1.5 (PaymentProvider: Mbank/O!Деньги/Элсом); до неё PRO — промокодом
+  (promo.redeem: атомарный расход использований, отказ при уже активном PRO) или админом.
+  Сид: ATELIER-LAUNCH (30 дней PRO, 100 использований).
+- PWA: manifest + иконки (scripts/gen-icons.mjs). Web-push и онбординг-мастер (M6.2) —
+  следующей волной; буст — отложен.
+- Смоук M6 — scripts/smoke-m6.mjs (20). smoke-cleanup дополнен: Notification/Entitlement
+  (FK на User ломал очистку молча) + возврат redeemedCount тест-активаций.
+
 ## Технические фиксации
 - Монорепо pnpm + Turborepo; apps/web (Next.js 15, TS strict, Tailwind v4, shadcn-паттерн, TanStack Query, tRPC),
   apps/services (Fastify: WS, BullMQ/Redis, grammY) — появится в M4/M6; packages/db, core, i18n, config.
