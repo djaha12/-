@@ -41,6 +41,8 @@ const ROUTES = [
   { name: 'brief-respond', path: '__BRIEF_RESPOND__', auth: 'spec' },
   // M5: очередь модерации (сессия модератора)
   { name: 'admin', path: '/admin', auth: 'mod' },
+  // M7: дашборд владельца
+  { name: 'admin-stats', path: '/admin/stats', auth: 'mod' },
   { name: 'dev-ui', path: '/dev/ui' },
 ]
 

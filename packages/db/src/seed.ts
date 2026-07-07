@@ -620,9 +620,55 @@ async function seedModeration() {
   console.log('✓ Модерация: очередь', await prisma.case.count({ where: { status: 'PENDING_REVIEW' } }), '· жалоб:', await prisma.report.count({ where: { status: 'OPEN' } }))
 }
 
+/** M7: демо-события аналитики за последние 30 дней — дашборд владельца живой из коробки. */
+async function seedAnalytics() {
+  if ((await prisma.analyticsOutbox.count()) > 0) return
+  const users = await prisma.user.findMany({ take: 12, select: { id: true } })
+  if (users.length === 0) return
+  const day = 864e5
+  const pick = (i: number) => users[i % users.length]!.id
+  const events: Array<{ eventName: string; actorId: string; daysAgo: number }> = [
+    ...Array.from({ length: 14 }, (_, i) => ({
+      eventName: 'session_login',
+      actorId: pick(i),
+      daysAgo: (i * 2) % 28,
+    })),
+    ...Array.from({ length: 8 }, (_, i) => ({
+      eventName: 'lead_created',
+      actorId: pick(i + 3),
+      daysAgo: (i * 3) % 27,
+    })),
+    ...Array.from({ length: 5 }, (_, i) => ({
+      eventName: 'order_proposed',
+      actorId: pick(i + 1),
+      daysAgo: (i * 5) % 25,
+    })),
+    ...Array.from({ length: 4 }, (_, i) => ({
+      eventName: 'order_completed',
+      actorId: pick(i + 2),
+      daysAgo: (i * 6) % 24,
+    })),
+    ...Array.from({ length: 4 }, (_, i) => ({
+      eventName: 'review_created',
+      actorId: pick(i + 4),
+      daysAgo: (i * 7) % 23,
+    })),
+  ]
+  await prisma.analyticsOutbox.createMany({
+    data: events.map((e) => ({
+      eventName: e.eventName,
+      actorId: e.actorId,
+      props: { seed: true },
+      occurredAt: new Date(Date.now() - e.daysAgo * day - 3 * 36e5),
+    })),
+  })
+  console.log('✓ Аналитика: демо-событий', events.length)
+}
+
 main()
   .then(seedBriefs)
   .then(seedModeration)
+  .then(seedAnalytics)
   .catch((e) => {
     console.error(e)
     process.exit(1)

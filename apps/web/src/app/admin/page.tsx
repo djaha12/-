@@ -28,9 +28,17 @@ export default async function AdminPage() {
     <>
       <SiteHeader />
       <main className="mx-auto max-w-3xl px-4 pb-20 sm:px-6">
-        <h1 className="pt-10 font-display text-[32px] leading-[1.12] font-semibold tracking-tight sm:text-4xl">
-          Модерация
-        </h1>
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 pt-10">
+          <h1 className="font-display text-[32px] leading-[1.12] font-semibold tracking-tight sm:text-4xl">
+            Модерация
+          </h1>
+          <Link
+            href="/admin/stats"
+            className="text-sm font-medium text-muted-foreground underline decoration-border-strong underline-offset-4 transition-colors hover:text-foreground hover:decoration-current"
+          >
+            Статистика →
+          </Link>
+        </div>
         <p className="mt-2 mb-8 text-sm leading-relaxed text-muted-foreground">
           Премодерация первых кейсов новичков и жалобы. Скрытие контента даёт автору страйк —
           три страйка замораживают аккаунт.

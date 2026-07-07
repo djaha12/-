@@ -20,6 +20,7 @@ import {
 } from '@atelier/core'
 import { prisma, Prisma, type OrderState } from '@atelier/db'
 import { recalcDealStats, recalcReviewAggregate } from './aggregates'
+import { track, trackSafe } from './track'
 import {
   createSession,
   destroySession,
@@ -147,6 +148,7 @@ const authRouter = t.router({
         })
       })
       await createSession(user.id)
+      await trackSafe('session_login', user.id)
       return { userId: user.id, displayName: user.displayName }
     }),
 
@@ -308,6 +310,10 @@ const casesRouter = t.router({
           data: { entityType: 'CASE', entityId: created.id, reason: 'NEW_USER_PREMOD' },
         })
       }
+      await trackSafe(pending ? 'case_pending' : 'case_published', ctx.user.id, {
+        caseId: created.id,
+        kind: input.kind,
+      })
       return { slug: created.slug, pending }
     }),
 })
@@ -433,6 +439,11 @@ const leadsRouter = t.router({
           data: { threadId: thread.id, senderId: ctx.user.id, text },
         }),
         prisma.chatThread.update({ where: { id: thread.id }, data: { lastMessageAt: new Date() } }),
+        track(prisma, 'lead_created', ctx.user.id, {
+          threadId: thread.id,
+          reusedThread: Boolean(existing),
+          withCase: Boolean(aboutCase),
+        }),
       ])
       return { threadId: thread.id }
     }),
@@ -566,6 +577,7 @@ const ordersRouter = t.router({
             events: { create: { toState: 'DISCUSSION', byUserId: ctx.user.id, reason: 'proposed' } },
           },
         })
+        await trackSafe('order_proposed', ctx.user.id, { orderId: order.id })
         return { orderId: order.id }
       } catch (e) {
         // partial unique index order_one_active_per_thread: гонка двойного propose
@@ -630,6 +642,9 @@ const ordersRouter = t.router({
         throw e
       }
       if (to === 'completed') await recalcReviewAggregate(order.specialistId)
+      if (to === 'agreed' || to === 'completed' || to === 'cancelled') {
+        await trackSafe(`order_${to}`, ctx.user.id, { orderId: order.id, auto: false })
+      }
       return { state: to }
     }),
 
@@ -747,6 +762,7 @@ const reviewsRouter = t.router({
         throw e
       }
       await recalcReviewAggregate(order.specialistId)
+      await trackSafe('review_created', ctx.user.id, { orderId: order.id })
       return { ok: true }
     }),
 })
@@ -819,6 +835,7 @@ const briefsRouter = t.router({
           budgetMax: input.budgetMax ?? null,
         },
       })
+      await trackSafe('brief_created', ctx.user.id, { briefId: brief.id })
       return { id: brief.id }
     }),
 
@@ -896,6 +913,10 @@ const briefsRouter = t.router({
             },
           },
         })
+        await trackSafe('brief_response_created', ctx.user.id, {
+          briefId: brief.id,
+          withCases: uniqueSlugs.length,
+        })
         return { id: created.id }
       } catch (e) {
         // unique(briefId, specialistId): двойной клик или второй отклик
@@ -957,6 +978,7 @@ const briefsRouter = t.router({
             where: { id: thread.id },
             data: { lastMessageAt: new Date() },
           }),
+          track(prisma, 'brief_accepted', ctx.user.id, { briefId: response.briefId }),
         ])
       }
       return { threadId: thread.id }
@@ -1062,6 +1084,7 @@ const reportsRouter = t.router({
           comment: input.comment || null,
         },
       })
+      await trackSafe('report_created', reporterId, { caseId: target.id, reason: input.reason })
       return { ok: true, duplicate: false }
     }),
 })
@@ -1088,6 +1111,7 @@ const adminRouter = t.router({
           await tx.auditLog.create({
             data: { actorId: ctx.user.id, action: 'case.approve', entityType: 'CASE', entityId: target.id },
           })
+          await track(tx, 'case_published', target.authorId, { caseId: target.id, viaModeration: true })
         }
         return u.count
       })

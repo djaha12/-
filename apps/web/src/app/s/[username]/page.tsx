@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { Clock, MapPin, Repeat2, Share2 } from 'lucide-react'
@@ -8,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CaseCard } from '@/components/case-card'
+import { JsonLd } from '@/components/json-ld'
 import { ReviewCard } from '@/components/review-card'
 import { RatingStars } from '@/components/rating-stars'
 import { VerifiedBadge } from '@/components/verified-badge'
@@ -15,8 +17,41 @@ import { img } from '@/mock/data'
 import { getSessionUser } from '@/server/auth'
 import { getSpecialist, markSaved } from '@/server/data'
 import { formatSom, plural } from '@/lib/utils'
+import { SITE_URL } from '@/lib/site'
 
 export const dynamic = 'force-dynamic'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string }>
+}): Promise<Metadata> {
+  const { username } = await params
+  const data = await getSpecialist(username)
+  if (!data) return { title: 'Специалист не найден', robots: { index: false } }
+  const s = data.specialist
+  const description = [
+    `${s.profession}, ${s.city}.`,
+    s.reviewsCount > 0 ? `Рейтинг ${s.rating.toFixed(1)} по ${s.reviewsCount} отзывам.` : null,
+    s.dealStats?.confirmed
+      ? `${s.dealStats.confirmed} ${plural(s.dealStats.confirmed, 'сделка подтверждена', 'сделки подтверждены', 'сделок подтверждено')} клиентами.`
+      : null,
+    'Портфолио и честные отзывы на Ателье.',
+  ]
+    .filter(Boolean)
+    .join(' ')
+  return {
+    title: `${s.name} — ${s.profession}, ${s.city}`,
+    description,
+    alternates: { canonical: `${SITE_URL}/s/${username}` },
+    openGraph: {
+      title: `${s.name} — ${s.profession}`,
+      description,
+      url: `${SITE_URL}/s/${username}`,
+      images: [{ url: `/api/og/profile/${username}`, width: 1200, height: 630 }],
+    },
+  }
+}
 
 export default async function ProfilePage({
   params,
@@ -51,6 +86,38 @@ export default async function ProfilePage({
   return (
     <>
       <SiteHeader />
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          // риелторы — RealEstateAgent (realtor-first, docs/05 §7), остальные — Person
+          '@type': isRealtor ? 'RealEstateAgent' : 'Person',
+          name: s.name,
+          jobTitle: s.profession,
+          url: `${SITE_URL}/s/${s.slug}`,
+          address: { '@type': 'PostalAddress', addressLocality: s.city, addressCountry: 'KG' },
+          ...(s.worksAt ? { worksFor: { '@type': 'Organization', name: s.worksAt } } : {}),
+          ...(s.reviewsCount > 0
+            ? {
+                aggregateRating: {
+                  '@type': 'AggregateRating',
+                  ratingValue: Number(s.rating.toFixed(1)),
+                  reviewCount: s.reviewsCount,
+                  bestRating: 5,
+                },
+                review: ownReviews.slice(0, 3).map((r) => ({
+                  '@type': 'Review',
+                  author: { '@type': 'Person', name: r.author },
+                  reviewBody: r.text,
+                  reviewRating: {
+                    '@type': 'Rating',
+                    ratingValue: Math.round((r.quality + r.timing + r.communication + r.budget) / 4),
+                    bestRating: 5,
+                  },
+                })),
+              }
+            : {}),
+        }}
+      />
       <main className="mx-auto max-w-[1160px] px-4 pb-28 sm:px-6 sm:pb-24">
         <div className="relative mt-0 -mx-4 h-44 overflow-hidden sm:mx-0 sm:mt-5 sm:h-64 sm:rounded-2xl">
           <Image

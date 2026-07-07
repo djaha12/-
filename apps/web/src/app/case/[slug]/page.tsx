@@ -1,7 +1,8 @@
+import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { BadgeCheck, Images, MapPin, Share2 } from 'lucide-react'
+import { BadgeCheck, Images, MapPin } from 'lucide-react'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { Avatar } from '@/components/ui/avatar'
@@ -9,15 +10,51 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { BeforeAfterSlider } from '@/components/before-after-slider'
 import { CaseCard, DEAL_TYPE_LABEL, dealOutcomeLabel } from '@/components/case-card'
+import { JsonLd } from '@/components/json-ld'
 import { ReportButton } from '@/components/report-button'
 import { ReviewCard } from '@/components/review-card'
 import { SaveButton } from '@/components/save-button'
+import { ShareButton } from '@/components/share-button'
 import { VerifiedBadge } from '@/components/verified-badge'
 import { getSessionUser } from '@/server/auth'
 import { getCase, markSaved } from '@/server/data'
 import { formatBudgetRange, formatDealPrice, plural } from '@/lib/utils'
+import { SITE_URL } from '@/lib/site'
 
 export const dynamic = 'force-dynamic'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}): Promise<Metadata> {
+  const { slug } = await params
+  const data = await getCase(slug)
+  if (!data) return { title: 'Кейс не найден', robots: { index: false } }
+  const { item, author } = data
+  const deal = item.deal
+  const description = deal
+    ? [
+        deal.confirmed ? 'Сделка подтверждена клиентом.' : null,
+        deal.daysOnMarket ? `Продано за ${deal.daysOnMarket} дн.` : null,
+        `${item.location}.`,
+        `${author.name} — ${author.profession.toLowerCase()} на Ателье.`,
+      ]
+        .filter(Boolean)
+        .join(' ')
+    : `${item.location}. ${author.name} — ${author.profession.toLowerCase()} на Ателье: реальные проекты и честные отзывы.`
+  return {
+    title: item.title,
+    description,
+    alternates: { canonical: `${SITE_URL}/case/${slug}` },
+    openGraph: {
+      title: item.title,
+      description,
+      url: `${SITE_URL}/case/${slug}`,
+      images: [{ url: `/api/og/case/${slug}`, width: 1200, height: 630 }],
+    },
+  }
+}
 
 export default async function CasePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -114,6 +151,42 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
   return (
     <>
       <SiteHeader />
+      {!moderation ? (
+        <>
+          <JsonLd
+            data={{
+              '@context': 'https://schema.org',
+              '@type': 'CreativeWork',
+              name: item!.title,
+              url: `${SITE_URL}/case/${item!.slug}`,
+              ...(item!.image.src ? { image: `${SITE_URL}${item!.image.src}` } : {}),
+              author: {
+                '@type': 'Person',
+                name: author.name,
+                jobTitle: author.profession,
+                url: `${SITE_URL}/s/${author.slug}`,
+              },
+              locationCreated: { '@type': 'Place', name: item!.location },
+            }}
+          />
+          <JsonLd
+            data={{
+              '@context': 'https://schema.org',
+              '@type': 'BreadcrumbList',
+              itemListElement: [
+                { '@type': 'ListItem', position: 1, name: 'Ателье', item: SITE_URL },
+                {
+                  '@type': 'ListItem',
+                  position: 2,
+                  name: deal ? 'Сделки' : 'Проекты',
+                  item: `${SITE_URL}/?type=${deal ? 'deals' : 'projects'}`,
+                },
+                { '@type': 'ListItem', position: 3, name: item!.title },
+              ],
+            }}
+          />
+        </>
+      ) : null}
       <main className="mx-auto max-w-[1160px] px-4 pb-28 sm:px-6 md:pb-20">
         {moderation ? (
           <div
@@ -198,9 +271,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
                 defaultSaved={item!.savedByMe}
                 className="rounded-full border border-border-strong bg-surface hover:bg-surface-muted"
               />
-              <Button variant="secondary" size="icon" aria-label="Поделиться кейсом">
-                <Share2 />
-              </Button>
+              <ShareButton slug={item!.slug} title={item!.title} />
             </div>
           </div>
         </header>

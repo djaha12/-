@@ -172,6 +172,35 @@ Dars делегировал решения по docs/01-questions.md: «дела
   (премодерация проверяется отдельно). Сид: модератор +996700000099, новичок с кейсом
   в очереди, 2 живые жалобы.
 
+## §19. M7 — SEO и аналитика (07.2026)
+- Метаданные: metadataBase из NEXT_PUBLIC_SITE_URL; generateMetadata у кейса и профиля
+  (title/description/canonical/OG); getCase/getSpecialist в React cache() — metadata и
+  страница делят запрос.
+- OG-карточки генерируются на лету (next/og): кейс и профиль 1200×630, сторис-визитка
+  1080×1920 (?download=1 — файл). Кнопка «Поделиться» на кейсе: системный share /
+  копирование / скачивание визитки — маркетинговый инструмент специалиста. Шрифты —
+  Liberation TTF в репо (satori не умеет woff2 и глифы ★/✓ — текст вместо символов);
+  фото в карточке — только jpeg/png (mock), webp из аплоадов → типографская карточка
+  (конверсия для OG — вместе с R2-пайплайном). Инвариант цены сохранён: OG использует
+  те же DTO (точная цена только при EXACT).
+- JSON-LD: профиль — RealEstateAgent (риелторы, docs/05 §7) / Person + AggregateRating +
+  3 Review; кейс — CreativeWork + BreadcrumbList (НЕ Product/Offer — мы не листинг);
+  только на публичных страницах.
+- sitemap.xml (кейсы published+не скрытые, профили) + robots.txt (закрыты /admin,
+  /messages, /briefs, /saved, /api, /login, /contact).
+- Аналитика — transactional outbox (AnalyticsOutbox из M1-схемы): track(tx) внутри
+  доменных транзакций (lead_created, brief_accepted, case_published viaModeration,
+  auto-подтверждение), trackSafe вне (никогда не роняет основной поток). События:
+  session_login, case_pending/published, lead_created, order_proposed/agreed/completed/
+  cancelled (auto-флаг), review_created, brief_*, report_created. PostHog — воркером
+  после получения ключей; события копятся с первого дня.
+- Дашборд владельца /admin/stats (MODERATOR/ADMIN): воронка 30д и контент — из доменных
+  таблиц (честно с первого дня), активность (7/30д) — distinct actorId из outbox;
+  топ районов по подтверждённым сделкам. Одна серия — один цвет, подписи текстом (dataviz).
+- Сид: 35 демо-событий за 30 дней — дашборд живой из коробки.
+- Смоук M7 — scripts/smoke-m7.mjs (17 проверок: sitemap/robots/OG/JSON-LD/canonical/
+  события/гарды дашборда).
+
 ## Технические фиксации
 - Монорепо pnpm + Turborepo; apps/web (Next.js 15, TS strict, Tailwind v4, shadcn-паттерн, TanStack Query, tRPC),
   apps/services (Fastify: WS, BullMQ/Redis, grammY) — появится в M4/M6; packages/db, core, i18n, config.

@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { canModerate, hideContacts, quotaMonthStart, PLAN_LIMITS } from '@atelier/core'
 import { prisma, type Prisma, type Specialization } from '@atelier/db'
 import type { CaseItem, DealInfo, DealType, MockImage, Review, Specialist } from '@/mock/data'
@@ -241,7 +242,8 @@ export async function getSpecialists(
   })
 }
 
-export async function getSpecialist(slug: string): Promise<
+// cache(): metadata и страница профиля делят один запрос
+export const getSpecialist = cache(async function getSpecialist(slug: string): Promise<
   | {
       specialist: Specialist
       cases: CaseItem[]
@@ -287,7 +289,7 @@ export async function getSpecialist(slug: string): Promise<
     })),
     coverImage: null, // обложки профилей — задел M2.2; страница использует дефолт
   }
-}
+})
 
 export interface CaseModerationNote {
   /** PENDING_REVIEW | REJECTED | HIDDEN — баннер статуса для автора */
@@ -296,7 +298,8 @@ export interface CaseModerationNote {
   reason: string | null
 }
 
-export async function getCase(
+// cache(): generateMetadata и страница делят один запрос в рамках рендера
+export const getCase = cache(async function getCase(
   slug: string,
   viewer?: { id: string; role: string } | null,
 ): Promise<
@@ -412,7 +415,7 @@ export async function getCase(
     related: relatedRows.map(toCaseItem),
     moderation,
   }
-}
+})
 
 export async function getDistricts(): Promise<Array<{ slug: string; name: string }>> {
   const rows = await prisma.district.findMany({ orderBy: { nameRu: 'asc' } })

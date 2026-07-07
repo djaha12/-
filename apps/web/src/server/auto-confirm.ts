@@ -2,6 +2,7 @@ import 'server-only'
 import { canTransitionOrder } from '@atelier/core'
 import { prisma } from '@atelier/db'
 import { recalcReviewAggregate } from './aggregates'
+import { track } from './track'
 
 /**
  * Авто-подтверждение сдачи: клиент не ответил 7 дней (AUTO_CONFIRM_DAYS) —
@@ -40,6 +41,7 @@ export async function runAutoConfirm(now = new Date()) {
               reason: 'auto_confirm',
             },
           })
+          await track(tx, 'order_completed', null, { orderId: o.id, auto: true })
         }
         return u.count
       })
