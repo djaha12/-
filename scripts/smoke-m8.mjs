@@ -75,10 +75,15 @@ const main = async () => {
     sharedCount(`\\"actorId\\"='${clientId}' AND props->>'method'='story' AND props->>'surface'='case'`) === 1,
     'нет строки')
 
-  // гость тоже может делиться (публичная процедура, actorId null)
-  await anon('analytics.share', { surface: 'profile', method: 'copy', slug: 'guest-marker-m8' })
+  // нонс на прогон: outbox копится между запусками, а in-memory rate-limit по
+  // ip:local держит окно 5 мин — уникальные слаги делают ассерты детерминированными
+  const nonce = Date.now()
+
+  // гость тоже может делиться (публичная процедура, actorId null); 1 шар на прогон —
+  // под лимитом даже при накоплении, поэтому не зависит от окна rate-limit
+  await anon('analytics.share', { surface: 'profile', method: 'copy', slug: `guest-${nonce}` })
   check('5. гость: content_shared (actorId null)',
-    sharedCount(`\\"actorId\\" IS NULL AND props->>'slug'='guest-marker-m8'`) === 1, 'нет строки')
+    sharedCount(`\\"actorId\\" IS NULL AND props->>'slug'='guest-${nonce}'`) === 1, 'нет строки')
 
   // атрибуция источника заявки: без метки → direct
   await client('leads.create', { specialistSlug: specSlug, text: 'Здравствуйте, продаю квартиру — нужна помощь.' })
@@ -95,6 +100,15 @@ const main = async () => {
   // вход по ?ref= не ломает рендер страницы
   const refPage = await fetch(`${BASE}/case/${c1.data.slug}?ref=share`)
   check('9. страница с ?ref=share рендерится', refPage.status === 200, refPage.status)
+
+  // backstop: бёрст выше лимита (30/5мин на ключ) — часть молча отброшена.
+  // Ведём от авторизованного клиента: ключ u:{id} свежий на прогон (детерминизм),
+  // без засорения общего ip:local-окна. Клиент уже сделал 1 шар (проверка 3).
+  for (let i = 0; i < 35; i++) {
+    await client('analytics.share', { surface: 'case', method: 'system', slug: `burst-${nonce}` })
+  }
+  const burst = sharedCount(`\\"actorId\\"='${clientId}' AND props->>'slug'='burst-${nonce}'`)
+  check('10. rate-limit гасит бёрст (записано <35)', burst < 35 && burst <= 30, `записано ${burst}`)
 
   console.log(`\n${pass}/${pass + fail} проверок пройдено`)
   process.exit(fail ? 1 : 0)

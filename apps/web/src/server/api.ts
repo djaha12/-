@@ -1482,6 +1482,32 @@ const notificationsRouter = t.router({
   }),
 })
 
+/**
+ * Backstop против накрутки/спама публичного analytics.share: фиксированное окно в
+ * памяти процесса. Best-effort (в multi-instance у каждого инстанса своя память) —
+ * этого достаточно против curl-циклов и случайной амплификации share-rate, ради
+ * которой блок и делается. Событие fire-and-forget и некритично, поэтому свыше
+ * лимита молча роняем без ошибки. Не per-event DB-count — не грузим БД на частом
+ * событии. Ключ — по юзеру (если вошёл) или по IP.
+ */
+const SHARE_RATE_LIMIT = 30
+const SHARE_RATE_WINDOW_MS = 5 * 60_000
+const shareHits = new Map<string, { count: number; resetAt: number }>()
+function allowShare(key: string, now: number): boolean {
+  const hit = shareHits.get(key)
+  if (!hit || now >= hit.resetAt) {
+    // протухшие ключи подметаем при разрастании — карта не растёт бесконечно
+    if (shareHits.size > 5000) {
+      for (const [k, v] of shareHits) if (now >= v.resetAt) shareHits.delete(k)
+    }
+    shareHits.set(key, { count: 1, resetAt: now + SHARE_RATE_WINDOW_MS })
+    return true
+  }
+  if (hit.count >= SHARE_RATE_LIMIT) return false
+  hit.count++
+  return true
+}
+
 const analyticsRouter = t.router({
   /**
    * Клиентское событие шеринга (визитка/ссылка). Узкий вайтлист + короткие поля,
@@ -1497,6 +1523,16 @@ const analyticsRouter = t.router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const now = Date.now()
+      let key: string
+      if (ctx.user) {
+        key = `u:${ctx.user.id}`
+      } else {
+        const hdrs = await headers()
+        key = `ip:${hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local'}`
+      }
+      // свыше лимита — молча (не раскрываем порог, не роняем шеринг)
+      if (!allowShare(key, now)) return { ok: true }
       await trackSafe('content_shared', ctx.user?.id ?? null, {
         surface: input.surface,
         method: input.method,
