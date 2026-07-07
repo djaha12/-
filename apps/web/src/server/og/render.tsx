@@ -59,6 +59,16 @@ export async function coverDataUrl(src: string): Promise<string | null> {
   }
 }
 
+/** число с обычными пробелами (NBSP из Intl в Liberation рендерится иначе) */
+export function formatNumOg(value: number): string {
+  return new Intl.NumberFormat('ru-RU').format(value).replace(/ /g, ' ')
+}
+
 export function formatSomOg(value: number): string {
-  return `${new Intl.NumberFormat('ru-RU').format(value).replace(/ /g, ' ')} сом`
+  return `${formatNumOg(value)} сом`
+}
+
+/** «58 м²» и «26 дн.» не отрываются от числа на переносе */
+export function ogTitle(t: string): string {
+  return t.replace(/\s+(м²|дн\.)/g, '\u00a0$1')
 }

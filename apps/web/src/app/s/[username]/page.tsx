@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { Clock, MapPin, Repeat2, Share2 } from 'lucide-react'
+import { Clock, MapPin, Repeat2 } from 'lucide-react'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { Avatar } from '@/components/ui/avatar'
@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CaseCard } from '@/components/case-card'
 import { JsonLd } from '@/components/json-ld'
 import { ReviewCard } from '@/components/review-card'
+import { ShareButton } from '@/components/share-button'
 import { RatingStars } from '@/components/rating-stars'
 import { VerifiedBadge } from '@/components/verified-badge'
 import { img } from '@/mock/data'
@@ -168,9 +169,7 @@ export default async function ProfilePage({
               <Button asChild size="lg" className="max-sm:hidden">
                 <a href={`/contact/${s.slug}`}>Отправить заявку</a>
               </Button>
-              <Button variant="secondary" size="icon" aria-label="Поделиться профилем">
-                <Share2 />
-              </Button>
+              <ShareButton path={`/s/${s.slug}`} title={s.name} label="Поделиться профилем" />
             </div>
           </div>
 

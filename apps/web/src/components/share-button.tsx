@@ -5,11 +5,23 @@ import { Check, Copy, ImageDown, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 /**
- * Шеринг кейса: системный share на мобильном, копирование ссылки,
+ * Шеринг: системный share на мобильном, копирование ссылки, у кейсов —
  * скачивание вертикальной визитки для сторис (/api/og/story) — маркетинг
  * специалиста в один тап.
  */
-export function ShareButton({ slug, title }: { slug: string; title: string }) {
+export function ShareButton({
+  path,
+  title,
+  storySlug,
+  label = 'Поделиться кейсом',
+}: {
+  /** путь страницы, например /case/slug или /s/slug */
+  path: string
+  title: string
+  /** slug кейса для визитки; без него пункт скачивания не показывается */
+  storySlug?: string
+  label?: string
+}) {
   const [open, setOpen] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
   const ref = React.useRef<HTMLDivElement>(null)
@@ -23,7 +35,7 @@ export function ShareButton({ slug, title }: { slug: string; title: string }) {
     return () => document.removeEventListener('pointerdown', onDown)
   }, [open])
 
-  const url = () => `${window.location.origin}/case/${slug}`
+  const url = () => `${window.location.origin}${path}`
 
   const share = async () => {
     if (navigator.share) {
@@ -52,7 +64,7 @@ export function ShareButton({ slug, title }: { slug: string; title: string }) {
 
   return (
     <div className="relative" ref={ref}>
-      <Button variant="secondary" size="icon" aria-label="Поделиться кейсом" onClick={share}>
+      <Button variant="secondary" size="icon" aria-label={label} onClick={share}>
         <Share2 />
       </Button>
       {open ? (
@@ -69,15 +81,17 @@ export function ShareButton({ slug, title }: { slug: string; title: string }) {
             )}
             {copied ? 'Скопировано' : 'Скопировать ссылку'}
           </button>
-          <a
-            href={`/api/og/story/${slug}?download=1`}
-            download
-            onClick={() => setOpen(false)}
-            className="flex h-11 w-full items-center gap-2.5 rounded-lg px-3 text-sm transition-colors hover:bg-surface-muted"
-          >
-            <ImageDown className="size-4 text-muted-foreground" aria-hidden />
-            Визитка для сторис
-          </a>
+          {storySlug ? (
+            <a
+              href={`/api/og/story/${storySlug}?download=1`}
+              download
+              onClick={() => setOpen(false)}
+              className="flex h-11 w-full items-center gap-2.5 rounded-lg px-3 text-sm transition-colors hover:bg-surface-muted"
+            >
+              <ImageDown className="size-4 text-muted-foreground" aria-hidden />
+              Визитка для сторис
+            </a>
+          ) : null}
         </div>
       ) : null}
     </div>

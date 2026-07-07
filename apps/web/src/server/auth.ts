@@ -1,5 +1,6 @@
 import 'server-only'
 import { createHash, randomBytes, randomInt } from 'node:crypto'
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import type { TrustTier } from '@atelier/core'
 import { prisma } from '@atelier/db'
@@ -46,7 +47,9 @@ export interface SessionUser {
   frozenAt: Date | null
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+// cache(): один запрос сессии на рендер (layout, страница, generateMetadata) —
+// и один и тот же объект-ссылка, чтобы cache(getCase)(slug, viewer) дедупился
+export const getSessionUser = cache(async function getSessionUser(): Promise<SessionUser | null> {
   const jar = await cookies()
   const token = jar.get(SESSION_COOKIE)?.value
   if (!token) return null
@@ -64,4 +67,4 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     trustTier: session.user.trustTier,
     frozenAt: session.user.frozenAt,
   }
-}
+})

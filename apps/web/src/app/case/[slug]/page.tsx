@@ -29,14 +29,20 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
-  const data = await getCase(slug)
+  // тот же viewer-объект, что у страницы (cache у getSessionUser) → getCase дедупится;
+  // автор pending-кейса видит настоящий title, но страница вне индекса
+  const viewer = await getSessionUser()
+  const data = await getCase(slug, viewer)
   if (!data) return { title: 'Кейс не найден', robots: { index: false } }
+  if (data.moderation) return { title: data.item.title, robots: { index: false } }
   const { item, author } = data
   const deal = item.deal
   const description = deal
     ? [
         deal.confirmed ? 'Сделка подтверждена клиентом.' : null,
-        deal.daysOnMarket ? `Продано за ${deal.daysOnMarket} дн.` : null,
+        deal.daysOnMarket
+          ? `${deal.type === 'rentOut' ? 'Сдано' : 'Продано'} за ${deal.daysOnMarket} дн.`
+          : null,
         `${item.location}.`,
         `${author.name} — ${author.profession.toLowerCase()} на Ателье.`,
       ]
@@ -271,7 +277,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
                 defaultSaved={item!.savedByMe}
                 className="rounded-full border border-border-strong bg-surface hover:bg-surface-muted"
               />
-              <ShareButton slug={item!.slug} title={item!.title} />
+              <ShareButton path={`/case/${item!.slug}`} title={item!.title} storySlug={item!.slug} />
             </div>
           </div>
         </header>

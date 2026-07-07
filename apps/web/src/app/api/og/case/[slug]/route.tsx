@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og'
 import { getCase } from '@/server/data'
-import { coverDataUrl, formatSomOg, loadOgFonts, OG } from '@/server/og/render'
+import { coverDataUrl, formatNumOg, formatSomOg, loadOgFonts, ogTitle, OG } from '@/server/og/render'
 import { SITE_NAME } from '@/lib/site'
 
 export const dynamic = 'force-dynamic'
@@ -20,12 +20,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   const cover = await coverDataUrl(item.image.src)
   const fonts = await loadOgFonts()
 
+  const monthly = deal?.type === 'rentOut' ? '/мес' : ''
   const price = deal?.price
-    ? formatSomOg(deal.price)
+    ? formatSomOg(deal.price) + monthly
     : deal?.priceFrom && deal?.priceTo
-      ? `${new Intl.NumberFormat('ru-RU').format(deal.priceFrom)}–${formatSomOg(deal.priceTo)}`
-      : item.budgetFrom > 0
-        ? `${new Intl.NumberFormat('ru-RU').format(item.budgetFrom)}–${formatSomOg(item.budgetTo)}`
+      ? `${formatNumOg(deal.priceFrom)}–${formatSomOg(deal.priceTo)}${monthly}`
+      : !deal && item.budgetFrom > 0
+        ? `${formatNumOg(item.budgetFrom)}–${formatSomOg(item.budgetTo)}`
         : null
 
   return new ImageResponse(
@@ -50,7 +51,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
           }}
         >
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               {deal ? (
                 <div
                   style={{
@@ -59,8 +60,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
                     backgroundColor: OG.accentSoft,
                     color: OG.accent,
                     borderRadius: 999,
-                    padding: '8px 20px',
-                    fontSize: 24,
+                    padding: '6px 16px',
+                    fontSize: 20,
                     fontWeight: 700,
                   }}
                 >
@@ -75,8 +76,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
                     backgroundColor: '#e5f2ea',
                     color: OG.success,
                     borderRadius: 999,
-                    padding: '8px 20px',
-                    fontSize: 24,
+                    padding: '6px 16px',
+                    fontSize: 20,
                     fontWeight: 700,
                   }}
                 >
@@ -97,7 +98,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
                 overflow: 'hidden',
               }}
             >
-              {item.title}
+              {ogTitle(item.title)}
             </div>
             {price ? (
               <div style={{ display: 'flex', marginTop: 24, fontSize: 40, fontWeight: 700, color: OG.accent }}>
@@ -106,7 +107,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
             ) : null}
             {deal?.daysOnMarket ? (
               <div style={{ display: 'flex', marginTop: 10, fontSize: 26, color: OG.muted }}>
-                Продано за {deal.daysOnMarket} дн. · {item.location}
+                {deal.type === 'rentOut' ? 'Сдано' : 'Продано'} за {deal.daysOnMarket} дн. · {item.location}
               </div>
             ) : (
               <div style={{ display: 'flex', marginTop: 10, fontSize: 26, color: OG.muted }}>

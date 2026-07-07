@@ -73,15 +73,14 @@ export async function getOwnerStats(): Promise<OwnerStats> {
     prisma.case.count({ where: { status: 'PENDING_REVIEW', deletedAt: null } }),
     prisma.report.count({ where: { status: 'OPEN' } }),
     prisma.analyticsOutbox.count({ where: { occurredAt: { gte: d30 } } }),
-    prisma.analyticsOutbox.findMany({
+    // groupBy = SQL GROUP BY (distinct у findMany дедупит в памяти клиента)
+    prisma.analyticsOutbox.groupBy({
+      by: ['actorId'],
       where: { occurredAt: { gte: d30 }, actorId: { not: null } },
-      distinct: ['actorId'],
-      select: { actorId: true },
     }),
-    prisma.analyticsOutbox.findMany({
+    prisma.analyticsOutbox.groupBy({
+      by: ['actorId'],
       where: { occurredAt: { gte: d7 }, actorId: { not: null } },
-      distinct: ['actorId'],
-      select: { actorId: true },
     }),
     prisma.case.groupBy({
       by: ['districtId'],

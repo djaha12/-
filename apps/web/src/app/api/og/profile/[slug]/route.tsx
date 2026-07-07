@@ -13,22 +13,32 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   const s = data.specialist
   const fonts = await loadOgFonts()
   const initials = s.name
-    .split(' ')
+    .split(/\s+/)
+    .filter(Boolean)
     .map((w) => w[0])
     .slice(0, 2)
     .join('')
 
-  const facts: string[] = []
+  // цифры — товар карточки: колонки «значение/подпись», как плитки дашборда
+  const facts: Array<{ value: string; label: string; accent?: boolean }> = []
   if (s.reviewsCount > 0)
-    facts.push(
-      `Рейтинг ${s.rating.toFixed(1)} · ${s.reviewsCount} ${plural(s.reviewsCount, 'отзыв', 'отзыва', 'отзывов')}`,
-    )
+    facts.push({
+      value: s.rating.toFixed(1),
+      label: `рейтинг · ${s.reviewsCount} ${plural(s.reviewsCount, 'отзыв', 'отзыва', 'отзывов')}`,
+      accent: true,
+    })
   if (s.dealStats?.confirmed)
-    facts.push(
-      `${s.dealStats.confirmed} ${plural(s.dealStats.confirmed, 'сделка подтверждена', 'сделки подтверждены', 'сделок подтверждено')} клиентами`,
-    )
+    facts.push({
+      value: String(s.dealStats.confirmed),
+      label: plural(
+        s.dealStats.confirmed,
+        'сделка подтверждена клиентами',
+        'сделки подтверждены клиентами',
+        'сделок подтверждено клиентами',
+      ),
+    })
   if (s.dealStats?.medianDaysOnMarket)
-    facts.push(`Медиана продажи — ${s.dealStats.medianDaysOnMarket} дн.`)
+    facts.push({ value: `${s.dealStats.medianDaysOnMarket} дн.`, label: 'медиана продажи' })
 
   return new ImageResponse(
     (
@@ -65,7 +75,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', fontFamily: 'Serif', fontSize: 64, fontWeight: 700, color: OG.ink }}>
               {s.name}
-              
             </div>
             <div style={{ display: 'flex', marginTop: 8, fontSize: 32, color: OG.muted }}>
               {s.profession} · {s.city}
@@ -74,16 +83,30 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {facts.map((f) => (
-            <div key={f} style={{ display: 'flex', fontSize: 34, color: OG.ink, fontWeight: 700 }}>
-              {f}
-            </div>
-          ))}
-          {facts.length === 0 ? (
-            <div style={{ display: 'flex', fontSize: 30, color: OG.muted }}>{SITE_TAGLINE}</div>
-          ) : null}
-        </div>
+        {facts.length > 0 ? (
+          <div style={{ display: 'flex', gap: 72 }}>
+            {facts.map((f) => (
+              <div key={f.label} style={{ display: 'flex', flexDirection: 'column', maxWidth: 340 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    fontFamily: 'Serif',
+                    fontSize: 64,
+                    fontWeight: 700,
+                    color: f.accent ? OG.accent : OG.ink,
+                  }}
+                >
+                  {f.value}
+                </div>
+                <div style={{ display: 'flex', marginTop: 8, fontSize: 24, color: OG.muted, lineHeight: 1.3 }}>
+                  {f.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', fontSize: 30, color: OG.muted }}>{SITE_TAGLINE}</div>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', fontSize: 26, color: OG.muted }}>

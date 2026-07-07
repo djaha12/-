@@ -5,7 +5,9 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: '*',
-      allow: '/',
+      // /api/og/ разрешён явно: боты соцсетей уважают robots для og:image —
+      // общий disallow /api/ оставил бы карточки без картинок
+      allow: ['/', '/api/og/'],
       // приватные и служебные зоны — вне индекса
       disallow: ['/admin', '/messages', '/briefs', '/saved', '/api/', '/login', '/contact/'],
     },

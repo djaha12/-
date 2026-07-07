@@ -1452,11 +1452,13 @@ model AnalyticsOutbox {
   eventName String
   /// Актор события (userId или анонимный id гостя) — без FK, событие переживает пользователя.
   actorId   String?
-  /// Свойства события по событийной схеме packages/core/analytics.
+  /// Свойства события; имена событий — apps/web/src/server/track.ts (вызовы track/trackSafe).
   props     Json
   occurredAt  DateTime @default(now())
   deliveredAt DateTime?
 
   @@index([deliveredAt, occurredAt])
   @@index([eventName, occurredAt])
+  // окно активности дашборда (where occurredAt >= …)
+  @@index([occurredAt])
 }

@@ -631,6 +631,10 @@ const ordersRouter = t.router({
           prisma.orderEvent.create({
             data: { orderId: order.id, fromState: order.state, toState: CORE_TO_ORDER_STATE[to], byUserId: ctx.user.id },
           }),
+          // событие воронки — атомарно с переходом
+          ...(to === 'agreed' || to === 'completed' || to === 'cancelled'
+            ? [track(prisma, `order_${to}`, ctx.user.id, { orderId: order.id, auto: false })]
+            : []),
         ])
       } catch (e) {
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
@@ -642,9 +646,6 @@ const ordersRouter = t.router({
         throw e
       }
       if (to === 'completed') await recalcReviewAggregate(order.specialistId)
-      if (to === 'agreed' || to === 'completed' || to === 'cancelled') {
-        await trackSafe(`order_${to}`, ctx.user.id, { orderId: order.id, auto: false })
-      }
       return { state: to }
     }),
 

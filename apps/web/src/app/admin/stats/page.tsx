@@ -37,7 +37,9 @@ function FunnelRow({
   prev?: number
 }) {
   const width = max > 0 ? Math.min(Math.max((value / max) * 100, value > 0 ? 4 : 0), 100) : 0
-  const conversion = prev != null && prev > 0 ? Math.round((value / prev) * 100) : null
+  // конверсия только при вложенных шагах: >100% читается как баг, а не как факт
+  const conversion =
+    prev != null && prev > 0 && value <= prev ? Math.round((value / prev) * 100) : null
   return (
     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
       <span className="text-sm text-muted-foreground sm:w-40 sm:shrink-0">{label}</span>
@@ -49,11 +51,12 @@ function FunnelRow({
             title={`${label}: ${value}`}
           />
         </span>
-        <span className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums">
-          {value}
-          {conversion != null ? (
-            <span className="ml-1.5 font-normal text-muted-foreground">{conversion}%</span>
-          ) : null}
+        {/* две фиксированные подколонки — числа стоят по одной оси */}
+        <span className="shrink-0 text-right text-sm tabular-nums">
+          <span className="inline-block w-9 text-right font-semibold">{value}</span>
+          <span className="inline-block w-12 text-right font-normal text-muted-foreground">
+            {conversion != null ? `${conversion}%` : ''}
+          </span>
         </span>
       </span>
     </div>
@@ -119,6 +122,9 @@ export default async function StatsPage() {
             <FunnelRow label="Завершено" value={s.funnel30d.completed} max={funnelMax} prev={s.funnel30d.orders} />
             <FunnelRow label="Отзывы" value={s.funnel30d.reviews} max={funnelMax} prev={s.funnel30d.completed} />
           </div>
+          <p className="mt-2 text-[13px] text-muted-foreground">
+            Шаги не строго вложены: заказы приходят и из брифов, и из старых диалогов.
+          </p>
         </section>
 
         <section aria-labelledby="briefs" className="mt-8">
@@ -140,11 +146,17 @@ export default async function StatsPage() {
             <Tile value={s.content.published} label="Кейсов в ленте" />
             <Tile value={s.content.deals} label="Кейсов-сделок" />
             <Tile value={s.content.confirmed} label="Подтверждено клиентами" />
-            <Tile
-              value={s.content.pendingQueue + s.content.openReports}
-              label="Ждёт модерации"
-              sub={`${s.content.pendingQueue} премод · ${s.content.openReports} жалоб`}
-            />
+            {/* единственная плитка-действие: ведёт в очередь модерации */}
+            <Link
+              href="/admin"
+              className="rounded-2xl transition-shadow hover:shadow-float focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              <Tile
+                value={s.content.pendingQueue + s.content.openReports}
+                label="Ждёт модерации"
+                sub={`${s.content.pendingQueue} премод · ${s.content.openReports} жалоб`}
+              />
+            </Link>
           </div>
         </section>
 
