@@ -9,7 +9,7 @@ export default function robots(): MetadataRoute.Robots {
       // общий disallow /api/ оставил бы карточки без картинок
       allow: ['/', '/api/og/'],
       // приватные и служебные зоны — вне индекса
-      disallow: ['/admin', '/messages', '/briefs', '/saved', '/api/', '/login', '/contact/'],
+      disallow: ['/admin', '/messages', '/briefs', '/saved', '/api/', '/login', '/contact/', '/dev'],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
   }

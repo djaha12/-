@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import { runAutoConfirm } from '@/server/auto-confirm'
 
 export const dynamic = 'force-dynamic'
+// батч + транзакции + отложенная доставка в Telegram; запас под Fluid Compute
+export const maxDuration = 300
 
 const sha = (s: string) => createHash('sha256').update(s).digest()
 

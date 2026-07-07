@@ -109,6 +109,10 @@ const DESCRIPTIONS: Record<string, string> = {
     'Квартира четыре месяца продавалась без результата: тёмные фото, завышенная цена, ноль звонков за последние недели. Мы начали с честной переоценки по свежим сделкам в этом квадрате — и с подготовки: хоумстейджинг за один день и профессиональная съёмка.\n\nПереупакованный объект собрал 26 обращений за первую неделю. Показы вели пакетно, торг держали от опорной цены — задаток взяли на 18-й день, итоговая цена выше первоначальных ожиданий собственницы. Все этапы фиксировались в заказе на Ателье.',
 }
 
+// SEED_DEMO=0 — только справочники (города/районы/тарифы/промо), без демо-контента.
+// Для публичного прода: фейковые специалисты/кейсы/заказы туда не нужны.
+const SEED_DEMO = process.env.SEED_DEMO !== '0'
+
 async function main() {
   if ((await prisma.user.count()) > 0) {
     console.log('БД уже насеяна — пропускаю (для пересева: удалите .data/pg и повторите миграцию)')
@@ -136,6 +140,12 @@ async function main() {
   for (const name of styleNames) {
     const row = await prisma.style.create({ data: { slug: slugify(name), nameRu: name } })
     styleId[name] = row.id
+  }
+
+  // справочники засеяны; демо-контент — только когда SEED_DEMO != 0
+  if (!SEED_DEMO) {
+    console.log('SEED_DEMO=0 — справочники засеяны, демо-контент пропущен')
+    return
   }
 
   // --- специалисты: user + profile + агрегаты ---
@@ -409,6 +419,7 @@ async function main() {
 
 /** M4.5: демо-брифы. Top-up — досеивает и уже насеянную БД (main() пропустился). */
 async function seedBriefs() {
+  if (!SEED_DEMO) return
   if ((await prisma.brief.count()) > 0) return
   const gulmira = await prisma.user.findFirst({
     where: { displayName: 'Гульмира А.', role: 'CLIENT' },
@@ -530,8 +541,12 @@ async function seedBriefs() {
 
 /** M5: демо-модерация. Top-up: модератор, новичок с кейсом на проверке, две жалобы. */
 async function seedModeration() {
+  if (!SEED_DEMO) return
   if ((await prisma.user.count({ where: { role: 'MODERATOR' } })) > 0) return
 
+  // демо-модератор. В публичном проде его нет: seedModeration под SEED_DEMO=0
+  // не выполняется, а VERCEL_ENV-гейт в requestOtp не отдаёт dev-код в проде.
+  // (На публичном preview с OTP_DEV_MODE=1 он логинится — так и задумано для теста.)
   await prisma.user.create({
     data: {
       phone: '+996700000099',
@@ -622,6 +637,7 @@ async function seedModeration() {
 
 /** M7: демо-события аналитики за последние 30 дней — дашборд владельца живой из коробки. */
 async function seedAnalytics() {
+  if (!SEED_DEMO) return
   if ((await prisma.analyticsOutbox.count()) > 0) return
   const users = await prisma.user.findMany({ take: 12, select: { id: true } })
   if (users.length === 0) return
@@ -705,7 +721,7 @@ async function seedMonetization() {
     },
   })
 
-  if ((await prisma.notification.count()) === 0) {
+  if (SEED_DEMO && (await prisma.notification.count()) === 0) {
     const nurlan = await prisma.user.findFirst({ where: { displayName: 'Нурлан Абдыкадыров' } })
     const gulmira = await prisma.user.findFirst({ where: { displayName: 'Гульмира А.' } })
     const thread = await prisma.chatThread.findFirst({ orderBy: { lastMessageAt: 'desc' } })

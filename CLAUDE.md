@@ -29,8 +29,14 @@ direct/share/other); расшаренная ссылка несёт ?ref=share. 
 docs/06 §13.1 (share-rate и «визитка→заявка» раньше не мерились).
 Смоуки: M4 21/21, M4.5 24/24, M5 23/23, M6 20/20, M7 17/17, M8 9/9 (scripts/smoke-*.mjs). Тесты core 34/34.
 Dev-БД: `pnpm db:start` (PG16 без Docker); `OTP_DEV_MODE=1` — код ТОЛЬКО тестовым +9967000XXXXX.
+**Deploy-ready на Vercel** (docs/07): storage-абстракция Vercel Blob + FS-fallback (нет токена → ФС),
+Prisma binaryTargets rhel + directUrl + generate в билде + fail-fast DATABASE_URL, next.config
+(remotePatterns Blob / outputFileTracing движка+OG-шрифтов / security-headers), vercel.json cron,
+клиентский downscale (лимит тела ~4.5 МБ), безопасность (песочница OTP гейт VERCEL_ENV, ANON_REPORT_SALT
+fail-closed, /dev/ui скрыт), SEED_DEMO=0 = только справочники. Смоуки зелёные в prod-сборке.
+Открыто: реальная доставка OTP (SMS/Telegram Gateway) не реализована — демо через OTP_DEV_MODE на preview.
 Маркетинг: docs/06-go-to-market.md (GTM+SMM пилота, validation-first после двойной критики).
-Дальше: i18n ru/ky/en + онбординг специалиста / web-push+дайджест / оплата (Фаза 1.5).
+Дальше: реальный OTP-провайдер / i18n ru/ky/en + онбординг / web-push+дайджест / оплата (Фаза 1.5).
 
 ## Документы
 - docs/02 план (M1–M7 + realtor-дельты) · docs/03 решения (§12 дефолты, §13 realtor-first,

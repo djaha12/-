@@ -81,34 +81,8 @@ export function LoginForm({ initialStep = 1 }: { initialStep?: number }) {
           </form>
           <p className="mt-3 flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
             <Send className="size-3.5" aria-hidden />
-            Код придёт в Telegram, запасной канал — SMS
+            Код придёт в Telegram
           </p>
-          <div className="mt-6 flex items-center gap-3 text-xs text-faint-foreground">
-            <span className="h-px flex-1 bg-border" aria-hidden />
-            или
-            <span className="h-px flex-1 bg-border" aria-hidden />
-          </div>
-          <Button variant="secondary" size="lg" className="mt-4 w-full">
-            <svg viewBox="0 0 24 24" aria-hidden className="size-4.5">
-              <path
-                fill="#4285F4"
-                d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.4 3.62v3h3.87c2.27-2.09 3.58-5.17 3.58-8.81Z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 24c3.24 0 5.96-1.07 7.94-2.91l-3.87-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.29v3.1A12 12 0 0 0 12 24Z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.27 14.28A7.2 7.2 0 0 1 4.89 12c0-.79.14-1.56.38-2.28v-3.1H1.29a12 12 0 0 0 0 10.76l3.98-3.1Z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 4.77c1.76 0 3.35.6 4.6 1.8l3.44-3.44A11.98 11.98 0 0 0 1.29 6.62l3.98 3.1C6.22 6.88 8.87 4.77 12 4.77Z"
-              />
-            </svg>
-            Продолжить с Google
-          </Button>
           <p className="mt-6 text-center text-xs leading-relaxed text-muted-foreground">
             Продолжая, вы принимаете{' '}
             <a href="#" className="underline underline-offset-2 hover:text-foreground">
@@ -173,25 +147,16 @@ export function LoginForm({ initialStep = 1 }: { initialStep?: number }) {
           </form>
           <p className="mt-3 text-center text-[13px] text-muted-foreground">
             {resendIn > 0 ? (
-              <>Не пришло? Отправим снова через {resendIn} сек · </>
+              <>Не пришло? Отправим снова через {resendIn} сек</>
             ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={sendCode}
-                  className="cursor-pointer font-medium text-foreground underline underline-offset-2"
-                >
-                  Отправить ещё раз
-                </button>{' '}
-                ·{' '}
-              </>
+              <button
+                type="button"
+                onClick={sendCode}
+                className="cursor-pointer font-medium text-foreground underline underline-offset-2"
+              >
+                Отправить ещё раз
+              </button>
             )}
-            <button
-              type="button"
-              className="cursor-pointer font-medium text-foreground underline underline-offset-2"
-            >
-              Прислать по SMS
-            </button>
           </p>
         </>
       )}

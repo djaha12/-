@@ -13,6 +13,35 @@ import { img, type CaseItem, type DealType } from '@/mock/data'
 import { trpc } from '@/lib/trpc'
 import { cn, formatDealPrice } from '@/lib/utils'
 
+/**
+ * Клиентский даунскейл до загрузки: тело запроса к функции Vercel режется на ~4.5 МБ,
+ * телефонные JPEG (4–12 МБ) иначе не дойдут до сервера. Серверный sharp всё равно
+ * перекодирует и срежет EXIF/GPS — здесь лишь уменьшаем и облегчаем. HEIC/старый
+ * браузер → шлём оригинал (сервер попробует sharp).
+ */
+async function downscaleForUpload(file: File): Promise<Blob> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+    const MAX = 1600
+    const scale = Math.min(1, MAX / Math.max(bitmap.width, bitmap.height))
+    const w = Math.round(bitmap.width * scale)
+    const h = Math.round(bitmap.height * scale)
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+    ctx.drawImage(bitmap, 0, 0, w, h)
+    bitmap.close()
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/webp', 0.85),
+    )
+    return blob && blob.size > 0 ? blob : file
+  } catch {
+    return file
+  }
+}
+
 /* ————— простые строительные блоки формы (без библиотек — минимум полей, умные дефолты) ————— */
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -201,8 +230,9 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
     setUploadError(null)
     try {
       for (const file of Array.from(files).slice(0, 20 - photos.length)) {
+        const blob = await downscaleForUpload(file)
         const form = new FormData()
-        form.append('file', file)
+        form.append('file', blob, 'photo.webp')
         const res = await fetch('/api/upload', { method: 'POST', body: form })
         const json = (await res.json()) as WizPhoto & { error?: string }
         if (!res.ok) {

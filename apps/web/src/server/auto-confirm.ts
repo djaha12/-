@@ -15,9 +15,13 @@ export async function runAutoConfirm(now = new Date()) {
   if (!canTransitionOrder('delivered', 'completed', 'system')) {
     throw new Error('core запрещает system-переход delivered→completed — проверьте ORDER_TRANSITIONS')
   }
+  // ограничиваем батч: не выйти за maxDuration лямбды при бэклоге;
+  // остаток дочистится следующим прогоном крона (updateMany идемпотентен)
   const due = await prisma.order.findMany({
     where: { state: 'DELIVERED', autoConfirmAt: { lte: now } },
     select: { id: true, specialistId: true, clientId: true, title: true, threadId: true },
+    orderBy: { autoConfirmAt: 'asc' },
+    take: 200,
   })
   let completed = 0
   const touchedSpecialists = new Set<string>()

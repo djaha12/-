@@ -108,9 +108,15 @@ const authRouter = t.router({
       })
       // M6: Telegram Gateway / SMS. Код на экран: в dev — всем; в песочнице
       // (OTP_DEV_MODE=1) — ТОЛЬКО тестовым номерам сида, не любому телефону.
+      // Гейт по VERCEL_ENV, НЕ по NODE_ENV: на Vercel preview NODE_ENV=production,
+      // но песочница там нужна; на публичном Production песочница ЗАПРЕЩЕНА
+      // (иначе вход модератором через засеянный тест-номер).
       const isDev = process.env.NODE_ENV !== 'production'
+      const sandboxAllowed = process.env.VERCEL_ENV !== 'production'
       const isSandboxTestPhone =
-        process.env.OTP_DEV_MODE === '1' && /^\+9967000\d{5}$/.test(input.phone)
+        sandboxAllowed &&
+        process.env.OTP_DEV_MODE === '1' &&
+        /^\+9967000\d{5}$/.test(input.phone)
       if (isDev) console.log(`[otp] ${input.phone} → ${code}`)
       return { devCode: isDev || isSandboxTestPhone ? code : undefined }
     }),
@@ -165,8 +171,10 @@ const authRouter = t.router({
 })
 
 // Только файлы нашего пайплайна: чужой src ронял бы next/image на всей ленте.
+// dev — относительный /uploads/*.webp; prod — абсолютный URL нашего Vercel Blob-стора.
 // mock/-пути разрешены вне production (демо-кнопка мастера и сид).
 const UPLOAD_SRC_RE = /^\/uploads\/[a-f0-9]+\.webp$/
+const BLOB_SRC_RE = /^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\/uploads\/[a-f0-9]+\.webp$/
 const MOCK_SRC_RE = /^\/mock\/[a-z0-9-]+\.jpg$/
 const uploadedImage = z.object({
   storageKey: z.string().min(1).max(200),
@@ -175,6 +183,7 @@ const uploadedImage = z.object({
     .refine(
       (s) =>
         UPLOAD_SRC_RE.test(s) ||
+        BLOB_SRC_RE.test(s) ||
         (process.env.NODE_ENV !== 'production' && MOCK_SRC_RE.test(s)),
       'Фото должно быть загружено через Ателье',
     ),
@@ -1130,9 +1139,14 @@ const reportsRouter = t.router({
       if (!reporterId) {
         // идентичность гостя — HMAC от IP: cookie подделывается ротацией, IP — нет.
         // Соседи по NAT делят лимит — осознанный компромисс MVP (docs/03 §18).
+        // fail-closed: зашитая в репо соль → деанонимизация anonId перебором IPv4.
+        const salt = process.env.ANON_REPORT_SALT
+        if (!salt && process.env.NODE_ENV === 'production') {
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Жалобы временно недоступны.' })
+        }
         const hdrs = await headers()
         const ip = hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local'
-        anonId = createHmac('sha256', process.env.ANON_REPORT_SALT ?? 'atelier-anon-dev')
+        anonId = createHmac('sha256', salt ?? 'atelier-anon-dev')
           .update(ip)
           .digest('hex')
           .slice(0, 32)

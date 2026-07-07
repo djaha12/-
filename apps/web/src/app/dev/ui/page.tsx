@@ -1,3 +1,4 @@
+import { notFound } from 'next/navigation'
 import { FolderPlus, Search } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +37,8 @@ const SWATCHES = [
 ] as const
 
 export default function DevUiPage() {
+  // витрина дизайн-системы — только вне прода
+  if (process.env.NODE_ENV === 'production') notFound()
   return (
     <>
       <SiteHeader />

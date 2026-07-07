@@ -15,11 +15,18 @@
 
 generator client {
   provider = "prisma-client-js"
+  // native — для локали и билд-образа Vercel (Amazon Linux); rhel-openssl-3.0.x —
+  // рантайм serverless-функции (AWS Lambda). Страховка от дрейфа build-образа.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
+  // рантайм — пул-строка транзакционного пулера (serverless открывает много коннектов)
   url      = env("DATABASE_URL")
+  // прямое session-mode соединение для миграций (migrate deploy через pgBouncer
+  // виснет на advisory-lock/prepared statements). В dev DIRECT_URL = тот же URL.
+  directUrl = env("DIRECT_URL")
 }
 
 // =============================================================================
@@ -567,7 +574,8 @@ model CaseImage {
   id     String @id @default(cuid())
   caseId String
   case   Case   @relation(fields: [caseId], references: [id])
-  /// Ключ оригинала в R2 (EXIF/GPS срезаны при перекодировании — приватность).
+  /// Ключ файла в хранилище (pathname в Vercel Blob / относительный путь в dev).
+  /// EXIF/GPS срезаны при перекодировании sharp — приватность жилья.
   storageKey String
   /// Варианты рендеров: { "400": {avif, webp}, "800": {...}, "1600": {...} }.
   variants   Json
