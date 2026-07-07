@@ -29,16 +29,19 @@ export default async function NotificationSettingsPage() {
     select: { telegramChatId: true },
   })
   const linked = Boolean(row?.telegramChatId)
-  const deepLink = TELEGRAM_BOT_USERNAME
-    ? `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${makeLinkToken(user.id)}`
-    : null
+  // токен null, если не задан секрет привязки (fail-closed) — тогда кнопку не показываем
+  const linkToken = makeLinkToken(user.id)
+  const deepLink =
+    TELEGRAM_BOT_USERNAME && linkToken
+      ? `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${linkToken}`
+      : null
 
   return (
     <>
       <SiteHeader />
       <main className="mx-auto max-w-xl px-4 pb-20 sm:px-6">
         <h1 className="pt-10 font-display text-[32px] leading-[1.12] font-semibold tracking-tight sm:text-4xl">
-          Уведомления
+          Настройки уведомлений
         </h1>
         <p className="mt-2 mb-8 text-sm leading-relaxed text-muted-foreground">
           Центр уведомлений работает всегда. Подключите Telegram — всё важное будет
@@ -91,7 +94,7 @@ export default async function NotificationSettingsPage() {
             ))}
           </ul>
           <p className="mt-2.5 text-[13px] leading-relaxed text-muted-foreground">
-            Сообщения чатов поштучно не дублируем — дайджест придёт вместе с push-уведомлениями.
+            Сообщения из чатов сюда не дублируем — они ждут вас в «Сообщениях».
           </p>
         </section>
       </main>

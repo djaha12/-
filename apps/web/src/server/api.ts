@@ -22,7 +22,7 @@ import {
 import { prisma, Prisma, type OrderState } from '@atelier/db'
 import { recalcDealStats, recalcReviewAggregate } from './aggregates'
 import { notifySafe } from './notify'
-import { getProUntil, getUserPlan } from './plan'
+import { getProStatus, getUserPlan } from './plan'
 import { track, trackSafe } from './track'
 import {
   createSession,
@@ -698,6 +698,12 @@ const ordersRouter = t.router({
           body: order.title,
           url: threadUrl,
         })
+      } else if (to === 'in_progress' && actor === 'client') {
+        await notifySafe(order.specialistId, 'order_delivered', {
+          title: 'Клиент вернул работу на доработку',
+          body: order.title,
+          url: threadUrl,
+        })
       } else if (to === 'cancelled') {
         await notifySafe(actor === 'client' ? order.specialistId : order.clientId, 'order_cancelled', {
           title: 'Заказ отменён',
@@ -1236,6 +1242,8 @@ const adminRouter = t.router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const target = await prisma.case.findUnique({ where: { id: input.caseId } })
+      if (!target) throw new TRPCError({ code: 'NOT_FOUND', message: 'Кейс не найден.' })
       const now = new Date()
       const claimed = await prisma.$transaction(async (tx) => {
         const u = await tx.case.updateMany({
@@ -1262,6 +1270,11 @@ const adminRouter = t.router({
       if (claimed === 0) {
         throw new TRPCError({ code: 'CONFLICT', message: 'Кейс уже обработан — обновите страницу.' })
       }
+      await notifySafe(target.authorId, 'case_rejected', {
+        title: 'Кейс отклонён модерацией',
+        body: input.reason,
+        url: `/case/${target.slug}`,
+      })
       return { ok: true }
     }),
 
@@ -1355,7 +1368,7 @@ const adminRouter = t.router({
             payload: { reason: report.reason, alreadyHidden: hidNow === 0 },
           },
         })
-        return { recalcSpecialistId }
+        return { recalcSpecialistId, offenderId }
       })
       if (!result) {
         throw new TRPCError({ code: 'CONFLICT', message: 'Жалоба уже обработана.' })
@@ -1363,6 +1376,10 @@ const adminRouter = t.router({
       // витрина пересчитывается вне транзакции: скрытое выпадает из агрегатов
       await recalcReviewAggregate(result.recalcSpecialistId)
       await recalcDealStats(result.recalcSpecialistId)
+      await notifySafe(result.offenderId, 'content_hidden', {
+        title: report.targetType === 'CASE' ? 'Кейс скрыт после жалобы' : 'Отзыв скрыт после жалобы',
+        body: 'Это страйк. Три страйка замораживают аккаунт — подробности в поддержке.',
+      })
       return { ok: true }
     }),
 })
@@ -1384,49 +1401,68 @@ const promoRouter = t.router({
       if (!code || !code.isActive || (code.expiresAt && code.expiresAt < new Date())) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Код не найден или истёк.' })
       }
-      const activeUntil = await getProUntil(ctx.user.id)
-      if (activeUntil) {
+      const pro = await getProStatus(ctx.user.id)
+      if (pro.active) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: `PRO уже активен до ${activeUntil.toLocaleDateString('ru-RU')} — код можно применить после.`,
+          message: pro.until
+            ? `PRO уже активен до ${pro.until.toLocaleDateString('ru-RU')} — код можно применить после.`
+            : 'PRO уже активен бессрочно.',
         })
       }
       const expiresAt = new Date(Date.now() + code.durationDays * 864e5)
-      const redeemed = await prisma.$transaction(async (tx) => {
-        // атомарный расход: гонка двух redeem не перерасходует код
-        const u = await tx.promoCode.updateMany({
-          where: { id: code.id, isActive: true, redeemedCount: { lt: code.maxRedemptions } },
-          data: { redeemedCount: { increment: 1 } },
-        })
-        if (u.count === 0) return false
-        await tx.entitlement.create({
-          data: {
-            userId: ctx.user.id,
-            planId: code.planId,
-            status: 'ACTIVE',
-            source: 'PROMO',
-            promoCodeId: code.id,
-            expiresAt,
-          },
-        })
-        await tx.auditLog.create({
-          data: {
-            actorId: ctx.user.id,
-            action: 'promo.redeem',
-            entityType: 'PROMO_CODE',
-            entityId: code.id,
-            payload: { code: code.code, days: code.durationDays },
-          },
-        })
-        await track(tx, 'promo_redeemed', ctx.user.id, { code: code.code, days: code.durationDays })
-        return true
-      })
+      let redeemed: boolean
+      try {
+        redeemed = await redeemTx(ctx.user.id, code, expiresAt)
+      } catch (e) {
+        // unique(userId, promoCodeId): двойной клик и ре-редим после истечения
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Этот код вы уже использовали.' })
+        }
+        throw e
+      }
       if (!redeemed) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Код уже использован максимальное число раз.' })
       }
       return { plan: code.plan.code, until: expiresAt }
     }),
 })
+
+/** Атомарный расход промокода: гонки не перерасходуют использования */
+function redeemTx(
+  userId: string,
+  code: { id: string; planId: string; code: string; durationDays: number; maxRedemptions: number },
+  expiresAt: Date,
+) {
+  return prisma.$transaction(async (tx) => {
+    const u = await tx.promoCode.updateMany({
+      where: { id: code.id, isActive: true, redeemedCount: { lt: code.maxRedemptions } },
+      data: { redeemedCount: { increment: 1 } },
+    })
+    if (u.count === 0) return false
+    await tx.entitlement.create({
+      data: {
+        userId,
+        planId: code.planId,
+        status: 'ACTIVE',
+        source: 'PROMO',
+        promoCodeId: code.id,
+        expiresAt,
+      },
+    })
+    await tx.auditLog.create({
+      data: {
+        actorId: userId,
+        action: 'promo.redeem',
+        entityType: 'PROMO_CODE',
+        entityId: code.id,
+        payload: { code: code.code, days: code.durationDays },
+      },
+    })
+    await track(tx, 'promo_redeemed', userId, { code: code.code, days: code.durationDays })
+    return true
+  })
+}
 
 const notificationsRouter = t.router({
   /** Отвязать Telegram (эквивалент /stop в боте) */

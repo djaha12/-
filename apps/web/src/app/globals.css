@@ -155,12 +155,20 @@
   }
 
   body {
+    display: flex;
+    min-height: 100dvh;
+    flex-direction: column;
     background-color: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
     font-feature-settings: 'ss01';
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  /* короткие страницы: футер прижат к низу вьюпорта */
+  body > main {
+    flex: 1;
   }
 
   ::selection {

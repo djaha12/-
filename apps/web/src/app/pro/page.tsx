@@ -8,7 +8,7 @@ import { SiteHeader } from '@/components/site-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getSessionUser } from '@/server/auth'
-import { getProUntil } from '@/server/plan'
+import { getProStatus } from '@/server/plan'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,14 +28,14 @@ const ROWS: Array<{ label: string; free: string | boolean; pro: string | boolean
 ]
 
 function Cell({ v }: { v: string | boolean }) {
-  if (v === true) return <Check className="mx-auto size-4 text-success" aria-label="Да" />
+  if (v === true) return <Check className="mx-auto size-4 text-foreground" aria-label="Да" />
   if (v === false) return <Minus className="mx-auto size-4 text-faint-foreground" aria-label="Нет" />
   return <span className="text-sm font-medium">{v}</span>
 }
 
 export default async function ProPage() {
   const user = await getSessionUser()
-  const proUntil = user ? await getProUntil(user.id) : null
+  const pro = user ? await getProStatus(user.id) : { active: false, until: null }
 
   return (
     <>
@@ -49,9 +49,11 @@ export default async function ProPage() {
           публикаций и поднимает вас в каталоге.
         </p>
 
-        {proUntil ? (
+        {pro.active ? (
           <p className="mb-6 rounded-xl bg-success-soft px-4 py-3 text-sm font-medium text-success">
-            У вас PRO до {proUntil.toLocaleDateString('ru-RU')}.
+            {pro.until
+              ? `У вас PRO до ${pro.until.toLocaleDateString('ru-RU')}.`
+              : 'У вас PRO — бессрочно.'}
           </p>
         ) : null}
 
@@ -60,8 +62,10 @@ export default async function ProPage() {
             <thead>
               <tr className="border-b border-border">
                 <th className="px-4 py-3.5 text-sm font-semibold sm:px-5">Что входит</th>
-                <th className="w-28 px-3 py-3.5 text-center text-sm font-semibold">Free</th>
-                <th className="w-28 px-3 py-3.5 text-center">
+                <th className="w-14 px-2 py-3.5 text-center text-sm font-semibold sm:w-28 sm:px-3">
+                  Free
+                </th>
+                <th className="w-24 px-2 py-3.5 text-center sm:w-28 sm:px-3">
                   <Badge variant="accent" size="sm">
                     PRO
                   </Badge>
@@ -72,10 +76,10 @@ export default async function ProPage() {
               {ROWS.map((r) => (
                 <tr key={r.label}>
                   <td className="px-4 py-3 text-sm sm:px-5">{r.label}</td>
-                  <td className="px-3 py-3 text-center text-muted-foreground">
+                  <td className="px-2 py-3 text-center text-muted-foreground sm:px-3">
                     <Cell v={r.free} />
                   </td>
-                  <td className="px-3 py-3 text-center">
+                  <td className="px-2 py-3 text-center sm:px-3">
                     <Cell v={r.pro} />
                   </td>
                 </tr>

@@ -66,12 +66,15 @@ export default async function NotificationsPage() {
           <h1 className="font-display text-[32px] leading-[1.12] font-semibold tracking-tight sm:text-4xl">
             Уведомления
           </h1>
-          <Button asChild variant="ghost" size="sm" className="h-11 text-muted-foreground sm:h-9">
-            <Link href="/settings/notifications">
-              <Settings aria-hidden />
-              Настроить
-            </Link>
-          </Button>
+          {/* при пустом списке действие уже есть в EmptyState — не дублируем */}
+          {items.length > 0 ? (
+            <Button asChild variant="ghost" size="sm" className="h-11 text-muted-foreground sm:h-9">
+              <Link href="/settings/notifications">
+                <Settings aria-hidden />
+                Настроить
+              </Link>
+            </Button>
+          ) : null}
         </div>
 
         {items.length === 0 ? (

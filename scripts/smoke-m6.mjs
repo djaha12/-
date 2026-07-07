@@ -71,7 +71,7 @@ const main = async () => {
 
   // колокольчик с непрочитанными в шапке
   const home = await (await fetch(`${BASE}/`, { headers: { cookie: specCookie } })).text()
-  console.log('4. бейдж непрочитанных в шапке:', home.includes('Непрочитанных:') ? '✓' : 'НЕТ')
+  console.log('4. бейдж непрочитанных в шапке:', home.includes('непрочитанных:') ? '✓' : 'НЕТ')
 
   // открытие центра помечает прочитанным
   const center = await (await fetch(`${BASE}/notifications`, { headers: { cookie: specCookie } })).text()

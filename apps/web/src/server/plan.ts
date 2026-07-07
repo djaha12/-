@@ -20,8 +20,13 @@ export async function getUserPlan(userId: string): Promise<Plan> {
   return active ? 'PRO' : 'FREE'
 }
 
-/** До какой даты действует PRO (null = нет PRO; undefined-безсрочных у промо не бывает) */
-export async function getProUntil(userId: string): Promise<Date | null> {
+/**
+ * Статус PRO: active + until (null при active = бессрочный, выдан админом).
+ * nulls first в сортировке — бессрочный entitlement главнее срочного.
+ */
+export async function getProStatus(
+  userId: string,
+): Promise<{ active: boolean; until: Date | null }> {
   const active = await prisma.entitlement.findFirst({
     where: {
       userId,
@@ -29,10 +34,10 @@ export async function getProUntil(userId: string): Promise<Date | null> {
       plan: { code: 'PRO' },
       OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
     },
-    orderBy: { expiresAt: 'desc' },
+    orderBy: { expiresAt: { sort: 'desc', nulls: 'first' } },
     select: { expiresAt: true },
   })
-  return active?.expiresAt ?? null
+  return active ? { active: true, until: active.expiresAt } : { active: false, until: null }
 }
 
 /** userIds с активным PRO — для приоритета в каталоге (один запрос на список) */

@@ -1372,6 +1372,8 @@ model Entitlement {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // один промокод — один раз на пользователя (NULL у MANUAL/PAYMENT не конфликтует)
+  @@unique([userId, promoCodeId])
   @@index([userId, status])
   @@index([status, expiresAt])
 }

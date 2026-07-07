@@ -201,6 +201,8 @@ export async function getSpecialists(
         : {}),
     },
     include: specialistInclude,
+    // детерминизм среза take: без orderBy Postgres может отдавать разный порядок
+    orderBy: { createdAt: 'asc' },
     take: 60,
   })
   // миниатюры одним запросом на всех (не N+1), срез по 3 — в памяти
@@ -879,17 +881,21 @@ export async function getUnreadNotificationsCount(userId: string): Promise<numbe
   return prisma.notification.count({ where: { userId, readAt: null } })
 }
 
-/** Список уведомлений; открытие страницы честно помечает всё прочитанным */
+/** Список уведомлений; открытие страницы помечает прочитанным ТОЛЬКО показанное */
 export async function getNotifications(userId: string): Promise<NotificationItem[]> {
   const rows = await prisma.notification.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
     take: 50,
   })
-  await prisma.notification.updateMany({
-    where: { userId, readAt: null },
-    data: { readAt: new Date() },
-  })
+  // №51+ и пришедшее во время рендера остаются непрочитанными до следующего визита
+  const shownUnread = rows.filter((r) => r.readAt == null).map((r) => r.id)
+  if (shownUnread.length > 0) {
+    await prisma.notification.updateMany({
+      where: { id: { in: shownUnread } },
+      data: { readAt: new Date() },
+    })
+  }
   return rows.map((n) => ({
     id: n.id,
     type: n.type,

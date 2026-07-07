@@ -79,13 +79,20 @@ export async function SiteHeader() {
                   </Link>
                 </Button>
               ) : null}
-              <Button asChild variant="ghost" size="icon" aria-label="Уведомления" className="relative">
-                <Link href="/notifications">
+              <Button asChild variant="ghost" size="icon" className="relative">
+                {/* prefetch выключен: заход на страницу помечает уведомления прочитанными */}
+                <Link
+                  href="/notifications"
+                  prefetch={false}
+                  aria-label={
+                    unread > 0 ? `Уведомления, непрочитанных: ${unread}` : 'Уведомления'
+                  }
+                >
                   <Bell />
                   {unread > 0 ? (
                     <span
                       className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-accent-foreground"
-                      aria-label={`Непрочитанных: ${unread}`}
+                      aria-hidden
                     >
                       {unread > 9 ? '9+' : unread}
                     </span>

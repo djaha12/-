@@ -13,18 +13,24 @@ import { SITE_URL } from '@/lib/site'
  */
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN
+// fail-closed: в проде без секрета привязка ОТКЛЮЧЕНА (не деградирует в
+// константу из репозитория — иначе кто угодно перепривяжет чужие уведомления)
 const LINK_SECRET =
-  process.env.TELEGRAM_LINK_SECRET ?? process.env.CRON_SECRET ?? 'atelier-tg-dev'
+  process.env.TELEGRAM_LINK_SECRET ??
+  process.env.CRON_SECRET ??
+  (process.env.NODE_ENV !== 'production' ? 'atelier-tg-dev' : null)
 
 export const TELEGRAM_BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT ?? null
 
-function sign(userId: string): string {
+function sign(userId: string): string | null {
+  if (!LINK_SECRET) return null
   return createHmac('sha256', LINK_SECRET).update(userId).digest('hex').slice(0, 16)
 }
 
-/** Токен привязки для deep-link /start */
-export function makeLinkToken(userId: string): string {
-  return `${userId}-${sign(userId)}`
+/** Токен привязки для deep-link /start; null = привязка недоступна (нет секрета) */
+export function makeLinkToken(userId: string): string | null {
+  const mac = sign(userId)
+  return mac ? `${userId}-${mac}` : null
 }
 
 /** Проверка токена из /start; вернёт userId или null */
@@ -34,6 +40,7 @@ export function verifyLinkToken(token: string): string | null {
   const userId = token.slice(0, i)
   const mac = token.slice(i + 1)
   const expected = sign(userId)
+  if (!expected) return null
   if (mac.length !== expected.length) return null
   try {
     if (!timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return null

@@ -34,9 +34,9 @@ export function PromoForm() {
         onChange={(e) => setCode(e.target.value.toUpperCase())}
         placeholder="ПРОМОКОД"
         aria-label="Промокод"
-        className="rounded-xl uppercase sm:max-w-60"
+        className="uppercase sm:max-w-60"
       />
-      <Button type="submit" variant="soft" loading={redeem.isPending} disabled={code.trim().length < 3}>
+      <Button type="submit" loading={redeem.isPending} disabled={code.trim().length < 3}>
         <Ticket aria-hidden />
         Активировать
       </Button>

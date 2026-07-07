@@ -13,7 +13,7 @@ export function canPublishCase(plan: Plan, publishedCasesCount: number): LimitCh
   if (publishedCasesCount < limit) return { allowed: true }
   return {
     allowed: false,
-    reason: `На тарифе Free можно опубликовать до ${limit} кейсов. Переведите кейс в архив или подключите PRO.`,
+    reason: `На тарифе Free можно опубликовать до ${limit} кейсов. Подключите PRO — лимит снимется.`,
   }
 }
 

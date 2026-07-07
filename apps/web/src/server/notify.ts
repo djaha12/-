@@ -1,4 +1,5 @@
 import 'server-only'
+import { after } from 'next/server'
 import { prisma, type Prisma } from '@atelier/db'
 import { sendTelegramSafe } from './telegram'
 
@@ -50,7 +51,8 @@ export function createNotification(
   })
 }
 
-/** Уведомить: in-app запись + попытка доставки в Telegram. Не бросает. */
+/** Уведомить: in-app запись сразу, доставка в Telegram — после ответа (after()),
+ *  чтобы лежащий Telegram не добавлял латентность мутациям. Не бросает. */
 export async function notifySafe(
   userId: string,
   type: NotificationType,
@@ -58,20 +60,27 @@ export async function notifySafe(
 ): Promise<void> {
   try {
     const n = await createNotification(prisma, userId, type, input)
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { telegramChatId: true },
-    })
-    if (user?.telegramChatId) {
-      const text = input.body ? `<b>${escapeHtml(input.title)}</b>\n${escapeHtml(input.body)}` : `<b>${escapeHtml(input.title)}</b>`
-      const ok = await sendTelegramSafe(user.telegramChatId, text, input.url)
-      if (ok) {
-        await prisma.notification.update({
-          where: { id: n.id },
-          data: { telegramSentAt: new Date() },
+    after(async () => {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { telegramChatId: true },
         })
+        if (!user?.telegramChatId) return
+        const text = input.body
+          ? `<b>${escapeHtml(input.title)}</b>\n${escapeHtml(input.body)}`
+          : `<b>${escapeHtml(input.title)}</b>`
+        const ok = await sendTelegramSafe(user.telegramChatId, text, input.url)
+        if (ok) {
+          await prisma.notification.update({
+            where: { id: n.id },
+            data: { telegramSentAt: new Date() },
+          })
+        }
+      } catch (e) {
+        console.error('[notify:telegram]', type, e)
       }
-    }
+    })
   } catch (e) {
     console.error('[notify]', type, e)
   }
