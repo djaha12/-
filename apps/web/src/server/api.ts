@@ -100,7 +100,7 @@ const authRouter = t.router({
         })
       }
       const code = generateOtpCode()
-      const otp = await prisma.otpCode.create({
+      await prisma.otpCode.create({
         data: {
           phone: input.phone,
           codeHash: sha256(code),
@@ -109,13 +109,14 @@ const authRouter = t.router({
       })
 
       // Боевая доставка: если настроен Telegram Gateway — шлём код через него и
-      // НЕ показываем на экране. При недоставке снимаем запись (не наказываем
-      // rate-limit'ом за сбой канала) и просим повторить.
+      // НЕ показываем на экране. Запись НЕ удаляем при сбое: она расходует лимит
+      // (иначе номера, что Gateway штатно отклоняет — без Telegram — обходили бы
+      // OTP_MAX_PER_HOUR = безлимитный requestOtp + исходящий POST = self-DoS).
+      // Бонус: если код всё же доставлен (таймаут после отправки) — он проверится.
       if (otpGatewayEnabled()) {
         const sent = await sendOtpViaGateway(input.phone, code, OTP_TTL_MIN * 60)
         if (!sent.ok) {
-          await prisma.otpCode.delete({ where: { id: otp.id } }).catch(() => {})
-          console.error('[otp:gateway]', input.phone, sent.error)
+          console.error('[otp:gateway] …%s %s', input.phone.slice(-4), sent.error)
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: 'Не удалось отправить код. Попробуйте ещё раз через минуту.',
