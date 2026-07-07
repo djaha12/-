@@ -277,7 +277,12 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
                 defaultSaved={item!.savedByMe}
                 className="rounded-full border border-border-strong bg-surface hover:bg-surface-muted"
               />
-              <ShareButton path={`/case/${item!.slug}`} title={item!.title} storySlug={item!.slug} />
+              <ShareButton
+                path={`/case/${item!.slug}`}
+                title={item!.title}
+                surface="case"
+                storySlug={item!.slug}
+              />
             </div>
           </div>
         </header>

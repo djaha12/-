@@ -174,7 +174,12 @@ export default async function ProfilePage({
               <Button asChild size="lg" className="max-sm:hidden">
                 <a href={`/contact/${s.slug}`}>Отправить заявку</a>
               </Button>
-              <ShareButton path={`/s/${s.slug}`} title={s.name} label="Поделиться профилем" />
+              <ShareButton
+                path={`/s/${s.slug}`}
+                title={s.name}
+                surface="profile"
+                label="Поделиться профилем"
+              />
             </div>
           </div>
 

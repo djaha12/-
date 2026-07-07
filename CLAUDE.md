@@ -22,8 +22,14 @@ MODERATOR/ADMIN (остальным 404): одобрить/отклонить с
 (deep-link привязка, /stop; без токена деградирует в in-app); монетизация — лимиты Free
 включены через core (5 кейсов/10 откликов), PRO промокодом (ATELIER-LAUNCH в сиде),
 PRO-приоритет каталога + бейдж; PWA-манифест.
-Смоуки: M4 21/21, M4.5 24/24, M5 23/23, M6 20/20, M7 17/17 (scripts/smoke-*.mjs). Тесты core 31/31.
+**M8** (инструментовка петли): событие `content_shared` от кнопки «Поделиться» (analytics.share,
+publicProcedure, вайтлист surface/method/slug) → share-rate; атрибуция заявки — `?ref=` first-touch
+в sessionStorage (RefCapture в layout) → source на `lead_created` (normalizeLeadSource в core:
+direct/share/other); расшаренная ссылка несёт ?ref=share. Закрывает «слепоту петли» из
+docs/06 §13.1 (share-rate и «визитка→заявка» раньше не мерились).
+Смоуки: M4 21/21, M4.5 24/24, M5 23/23, M6 20/20, M7 17/17, M8 9/9 (scripts/smoke-*.mjs). Тесты core 34/34.
 Dev-БД: `pnpm db:start` (PG16 без Docker); `OTP_DEV_MODE=1` — код ТОЛЬКО тестовым +9967000XXXXX.
+Маркетинг: docs/06-go-to-market.md (GTM+SMM пилота, validation-first после двойной критики).
 Дальше: i18n ru/ky/en + онбординг специалиста / web-push+дайджест / оплата (Фаза 1.5).
 
 ## Документы

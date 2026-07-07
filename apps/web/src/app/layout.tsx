@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { ThemeProvider } from 'next-themes'
+import { RefCapture } from '@/components/ref-capture'
 import { TrpcProvider } from '@/lib/trpc'
 import { SITE_NAME, SITE_URL } from '@/lib/site'
 import '@fontsource-variable/manrope'
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ru" suppressHydrationWarning>
       <body>
+        <RefCapture />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <TrpcProvider>{children}</TrpcProvider>
         </ThemeProvider>

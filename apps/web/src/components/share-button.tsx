@@ -2,22 +2,29 @@
 
 import * as React from 'react'
 import { Check, Copy, ImageDown, Share2 } from 'lucide-react'
+import type { ShareMethod, ShareSurface } from '@atelier/core'
 import { Button } from '@/components/ui/button'
+import { REF_PARAM } from '@/lib/attribution'
+import { trpc } from '@/lib/trpc'
 
 /**
  * Шеринг: системный share на мобильном, копирование ссылки, у кейсов —
  * скачивание вертикальной визитки для сторис (/api/og/story) — маркетинг
- * специалиста в один тап.
+ * специалиста в один тап. Расшаренная ссылка помечается ?ref=share, а сам факт
+ * шеринга шлётся в аналитику (share-rate петли §7.1 GTM-плана).
  */
 export function ShareButton({
   path,
   title,
+  surface,
   storySlug,
   label = 'Поделиться кейсом',
 }: {
   /** путь страницы, например /case/slug или /s/slug */
   path: string
   title: string
+  /** поверхность шеринга — для атрибуции события */
+  surface: ShareSurface
   /** slug кейса для визитки; без него пункт скачивания не показывается */
   storySlug?: string
   label?: string
@@ -25,6 +32,7 @@ export function ShareButton({
   const [open, setOpen] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
   const ref = React.useRef<HTMLDivElement>(null)
+  const track = trpc.analytics.share.useMutation()
 
   React.useEffect(() => {
     if (!open) return
@@ -35,12 +43,23 @@ export function ShareButton({
     return () => document.removeEventListener('pointerdown', onDown)
   }, [open])
 
-  const url = () => `${window.location.origin}${path}`
+  // расшаренная ссылка несёт метку источника — так вход по ней атрибутируется
+  const url = () => {
+    const u = new URL(path, window.location.origin)
+    u.searchParams.set(REF_PARAM, 'share')
+    return u.toString()
+  }
+
+  // fire-and-forget: аналитика не должна ломать или тормозить шеринг
+  const logShare = (method: ShareMethod) => {
+    track.mutate({ surface, method, slug: storySlug ?? path })
+  }
 
   const share = async () => {
     if (navigator.share) {
       try {
         await navigator.share({ title, url: url() })
+        logShare('system')
         return
       } catch {
         /* пользователь закрыл системный диалог — покажем меню */
@@ -52,6 +71,7 @@ export function ShareButton({
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(url())
+      logShare('copy')
       setCopied(true)
       setTimeout(() => {
         setCopied(false)
@@ -85,7 +105,10 @@ export function ShareButton({
             <a
               href={`/api/og/story/${storySlug}?download=1`}
               download
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                logShare('story')
+                setOpen(false)
+              }}
               className="flex h-11 w-full items-center gap-2.5 rounded-lg px-3 text-sm transition-colors hover:bg-surface-muted"
             >
               <ImageDown className="size-4 text-muted-foreground" aria-hidden />

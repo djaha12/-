@@ -12,10 +12,13 @@ import {
   derivePriceRange,
   isValidScores,
   needsPremoderation,
+  normalizeLeadSource,
   quotaMonthStart,
   shouldFreeze,
   shouldPromoteToTrusted,
   AUTO_CONFIRM_DAYS,
+  SHARE_METHODS,
+  SHARE_SURFACES,
   type OrderActor,
   type OrderStatus,
 } from '@atelier/core'
@@ -406,6 +409,8 @@ const leadsRouter = t.router({
         specialistSlug: z.string(),
         caseSlug: z.string().optional(),
         text: z.string().trim().min(10, 'Опишите задачу хотя бы парой предложений.').max(2000),
+        /** сырой ?ref= первого касания — сервер нормализует в известную корзину */
+        source: z.string().max(32).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -461,6 +466,7 @@ const leadsRouter = t.router({
           threadId: thread.id,
           reusedThread: Boolean(existing),
           withCase: Boolean(aboutCase),
+          source: normalizeLeadSource(input.source),
         }),
       ])
       await notifySafe(profile.userId, 'lead_new', {
@@ -1476,6 +1482,30 @@ const notificationsRouter = t.router({
   }),
 })
 
+const analyticsRouter = t.router({
+  /**
+   * Клиентское событие шеринга (визитка/ссылка). Узкий вайтлист + короткие поля,
+   * чтобы публичная ручка не засоряла outbox произвольными событиями. Гость тоже
+   * может делиться — публичная процедура; сбой аналитики не роняет ответ.
+   */
+  share: publicProcedure
+    .input(
+      z.object({
+        surface: z.enum(SHARE_SURFACES),
+        method: z.enum(SHARE_METHODS),
+        slug: z.string().max(200),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await trackSafe('content_shared', ctx.user?.id ?? null, {
+        surface: input.surface,
+        method: input.method,
+        slug: input.slug,
+      })
+      return { ok: true }
+    }),
+})
+
 export const appRouter = t.router({
   auth: authRouter,
   cases: casesRouter,
@@ -1489,6 +1519,7 @@ export const appRouter = t.router({
   admin: adminRouter,
   promo: promoRouter,
   notifications: notificationsRouter,
+  analytics: analyticsRouter,
 })
 
 export type AppRouter = typeof appRouter

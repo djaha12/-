@@ -5,6 +5,23 @@ import { canTransitionOrder, ORDER_TRANSITIONS, TERMINAL_ORDER_STATUSES, type Or
 import { canSubmitReview, isValidScores, overallScore } from './reviews'
 import { CONTACT_PLACEHOLDER, hideContacts } from './contacts'
 import { canModerate, needsPremoderation, shouldFreeze, shouldPromoteToTrusted } from './moderation'
+import { normalizeLeadSource } from './analytics'
+
+describe('атрибуция источника заявки', () => {
+  it('пусто → direct', () => {
+    expect(normalizeLeadSource(null)).toBe('direct')
+    expect(normalizeLeadSource(undefined)).toBe('direct')
+    expect(normalizeLeadSource('')).toBe('direct')
+  })
+  it('известная метка проходит как есть (регистр/пробелы не важны)', () => {
+    expect(normalizeLeadSource('share')).toBe('share')
+    expect(normalizeLeadSource('  Story ')).toBe('story')
+  })
+  it('неизвестная метка схлопывается в other (защита от мусора в URL)', () => {
+    expect(normalizeLeadSource('promo123')).toBe('other')
+    expect(normalizeLeadSource('<script>')).toBe('other')
+  })
+})
 
 describe('лимиты тарифов', () => {
   it('Free: 5-й опубликованный кейс — последний разрешённый', () => {

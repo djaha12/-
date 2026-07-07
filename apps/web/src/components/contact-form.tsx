@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { readRef } from '@/lib/attribution'
 import { trpc } from '@/lib/trpc'
 
 const REALTOR_PLACEHOLDER =
@@ -34,7 +35,8 @@ export function ContactForm({
       className="mt-5"
       onSubmit={(e) => {
         e.preventDefault()
-        create.mutate({ specialistSlug, caseSlug, text })
+        // источник (первое касание) — для атрибуции петли «визитка → заявка»
+        create.mutate({ specialistSlug, caseSlug, text, source: readRef() ?? undefined })
       }}
     >
       <label className="block">
