@@ -17,6 +17,7 @@ export type NotificationType =
   | 'order_proposed'
   | 'order_agreed'
   | 'order_delivered'
+  | 'order_returned'
   | 'order_completed'
   | 'order_cancelled'
   | 'review_new'

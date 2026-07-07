@@ -699,7 +699,7 @@ const ordersRouter = t.router({
           url: threadUrl,
         })
       } else if (to === 'in_progress' && actor === 'client') {
-        await notifySafe(order.specialistId, 'order_delivered', {
+        await notifySafe(order.specialistId, 'order_returned', {
           title: 'Клиент вернул работу на доработку',
           body: order.title,
           url: threadUrl,
@@ -1368,7 +1368,7 @@ const adminRouter = t.router({
             payload: { reason: report.reason, alreadyHidden: hidNow === 0 },
           },
         })
-        return { recalcSpecialistId, offenderId }
+        return { recalcSpecialistId, offenderId, struck: hidNow === 1 }
       })
       if (!result) {
         throw new TRPCError({ code: 'CONFLICT', message: 'Жалоба уже обработана.' })
@@ -1376,10 +1376,14 @@ const adminRouter = t.router({
       // витрина пересчитывается вне транзакции: скрытое выпадает из агрегатов
       await recalcReviewAggregate(result.recalcSpecialistId)
       await recalcDealStats(result.recalcSpecialistId)
-      await notifySafe(result.offenderId, 'content_hidden', {
-        title: report.targetType === 'CASE' ? 'Кейс скрыт после жалобы' : 'Отзыв скрыт после жалобы',
-        body: 'Это страйк. Три страйка замораживают аккаунт — подробности в поддержке.',
-      })
+      // повторная резолюция по уже скрытому контенту страйка не даёт —
+      // и не пугает автора вторым «это страйк» (уведомление уже уходило)
+      if (result.struck) {
+        await notifySafe(result.offenderId, 'content_hidden', {
+          title: report.targetType === 'CASE' ? 'Кейс скрыт после жалобы' : 'Отзыв скрыт после жалобы',
+          body: 'Это страйк. Три страйка замораживают аккаунт — подробности в поддержке.',
+        })
+      }
       return { ok: true }
     }),
 })
