@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error('[upload]', e)
     return NextResponse.json(
-      { error: 'Не получилось обработать фото. Поддерживаются JPG, PNG, WebP и HEIC.' },
+      { error: 'Не получилось обработать фото. Поддерживаются JPG, PNG и WebP.' },
       { status: 422 },
     )
   }

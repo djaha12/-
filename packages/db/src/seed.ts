@@ -114,7 +114,9 @@ const DESCRIPTIONS: Record<string, string> = {
 const SEED_DEMO = process.env.SEED_DEMO !== '0'
 
 async function main() {
-  if ((await prisma.user.count()) > 0) {
+  // идемпотентность по справочникам (city), а не по демо-юзерам: при SEED_DEMO=0
+  // юзеров нет, и гейт по user.count навсегда бы пропускал → повтор ронял City.slug @unique
+  if ((await prisma.city.count()) > 0) {
     console.log('БД уже насеяна — пропускаю (для пересева: удалите .data/pg и повторите миграцию)')
     return
   }

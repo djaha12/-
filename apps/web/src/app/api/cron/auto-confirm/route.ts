@@ -3,8 +3,9 @@ import { NextResponse } from 'next/server'
 import { runAutoConfirm } from '@/server/auto-confirm'
 
 export const dynamic = 'force-dynamic'
-// батч + транзакции + отложенная доставка в Telegram; запас под Fluid Compute
-export const maxDuration = 300
+// 60с безопасно на всех планах (Hobby без Fluid режет >60 на билде); батч take:200
+// с транзакциями укладывается с запасом. На Pro/Fluid можно поднять.
+export const maxDuration = 60
 
 const sha = (s: string) => createHash('sha256').update(s).digest()
 
