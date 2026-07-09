@@ -6,10 +6,17 @@ import { Send, Unlink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { trpc } from '@/lib/trpc'
 
-/** Кнопки привязки/отвязки Telegram на /settings/notifications */
-export function TelegramLinkButton({ deepLink }: { deepLink: string }) {
+/** Кнопки привязки/отвязки Telegram (/settings/notifications, онбординг) */
+export function TelegramLinkButton({
+  deepLink,
+  variant,
+}: {
+  deepLink: string
+  /** 'soft' — где на экране уже есть свой primary (онбординг: один primary на экран) */
+  variant?: 'soft'
+}) {
   return (
-    <Button asChild className="max-sm:w-full">
+    <Button asChild variant={variant} className="max-sm:w-full">
       <a href={deepLink} target="_blank" rel="noopener noreferrer">
         <Send aria-hidden />
         Привязать Telegram

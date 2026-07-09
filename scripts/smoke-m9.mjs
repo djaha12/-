@@ -92,6 +92,15 @@ const main = async () => {
   const newPage2 = await fetch(`${BASE}/new`, { headers: { cookie }, redirect: 'follow' })
   check('13. /new с профилем открывается', !newPage2.url.includes('/onboarding') && newPage2.status === 200, newPage2.url)
 
+  // контакт-детект на записи: телефон в публичной метке → 400 (телефоны до заявки)
+  const contact = await me('profiles.setup', {
+    displayName: 'Смоук Риелтор',
+    specialization: 'REALTOR',
+    worksAt: 'звоните +996 555 123 456',
+    districtSlugs: [],
+  })
+  check('14. телефон в «работаю в X» отклонён', contact.status === 400, `${contact.status} ${contact.error ?? ''}`)
+
   console.log(`\n${pass}/${pass + fail} проверок пройдено`)
   process.exit(fail ? 1 : 0)
 }

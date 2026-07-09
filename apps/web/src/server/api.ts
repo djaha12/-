@@ -9,6 +9,7 @@ import {
   canRespondToBrief,
   canSelectExpertiseDistricts,
   canSubmitReview,
+  hideContacts,
   canTransitionOrder,
   derivePriceRange,
   isValidScores,
@@ -1535,9 +1536,21 @@ const profilesRouter = t.router({
   setup: activeProcedure
     .input(
       z.object({
-        displayName: z.string().trim().min(2, 'Имя — от 2 символов').max(60),
+        // контакт-детект на записи: имя и метка публичны везде (каталог, кейс, OG),
+        // телефон/ник в них обнулял бы петлю заявок («телефоны скрыты до заявки»)
+        displayName: z
+          .string()
+          .trim()
+          .min(2, 'Имя — от 2 символов')
+          .max(60)
+          .refine((v) => hideContacts(v) === v, 'Уберите телефон или ник из имени — контакты клиент получает после заявки.'),
         specialization: z.enum(SPECIALIZATIONS),
-        worksAt: z.string().trim().max(80).optional(),
+        worksAt: z
+          .string()
+          .trim()
+          .max(80)
+          .refine((v) => hideContacts(v) === v, 'Уберите телефон или ник — контакты клиент получает после заявки.')
+          .optional(),
         districtSlugs: z
           .array(z.string().max(80))
           .max(MAX_EXPERTISE_DISTRICTS, `Не больше ${MAX_EXPERTISE_DISTRICTS} районов`)
@@ -1556,7 +1569,8 @@ const profilesRouter = t.router({
         : []
       const bishkek = await prisma.city.findUnique({ where: { slug: 'bishkek' } })
 
-      const slug = await prisma.$transaction(async (tx) => {
+      const runSetup = () =>
+        prisma.$transaction(async (tx) => {
         await tx.user.update({
           where: { id: ctx.user.id },
           data: { displayName: input.displayName },
@@ -1601,6 +1615,19 @@ const profilesRouter = t.router({
         })
         return profile.slug
       })
+
+      // гонка двух первых setup (две вкладки): оба видят existing=null, второй
+      // падает P2002 на userId @unique — повтор находит профиль и идёт в update
+      let slug: string
+      try {
+        slug = await runSetup()
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          slug = await runSetup()
+        } else {
+          throw e
+        }
+      }
       return { slug }
     }),
 })

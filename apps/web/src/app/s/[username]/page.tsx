@@ -396,23 +396,25 @@ export default async function ProfilePage({
           </TabsContent>
         </Tabs>
       </main>
-      <SiteFooter className="max-sm:pb-24" />
+      <SiteFooter className={viewer?.specialistSlug !== s.slug ? 'max-sm:pb-24' : undefined} />
 
-      {/* мобильный CTA в зоне большого пальца */}
-      <div
-        data-fixed-bar
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:hidden"
-      >
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1 pl-1">
-            <p className="truncate text-[13px] font-semibold">{s.name}</p>
-            <p className="truncate text-xs text-muted-foreground">отвечает {s.responseTime}</p>
+      {/* мобильный CTA в зоне большого пальца; владельцу заявка себе не нужна */}
+      {viewer?.specialistSlug !== s.slug ? (
+        <div
+          data-fixed-bar
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:hidden"
+        >
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1 pl-1">
+              <p className="truncate text-[13px] font-semibold">{s.name}</p>
+              <p className="truncate text-xs text-muted-foreground">отвечает {s.responseTime}</p>
+            </div>
+            <Button asChild size="lg" className="flex-[1.4]">
+              <a href={`/contact/${s.slug}`}>Отправить заявку</a>
+            </Button>
           </div>
-          <Button asChild size="lg" className="flex-[1.4]">
-            <a href={`/contact/${s.slug}`}>Отправить заявку</a>
-          </Button>
         </div>
-      </div>
+      ) : null}
     </>
   )
 }

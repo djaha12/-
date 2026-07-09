@@ -22,6 +22,8 @@ const ROUTES = [
   { name: 'profile-reviews', path: '/s/aizhan-saparova?tab=reviews' },
   { name: 'case', path: '/case/loft-dzhal-72' },
   { name: 'profile-realtor', path: '/s/nurlan-abdykadyrov' },
+  // M6.2: профиль глазами владельца («Настроить профиль», без CTA заявки себе)
+  { name: 'profile-own', path: '/s/nurlan-abdykadyrov', auth: 'spec' },
   { name: 'case-deal', path: '/case/dvushka-toktogula' },
   { name: 'specialists', path: '/specialists' },
   { name: 'wizard-1', path: '/new', auth: 'spec' },

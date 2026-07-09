@@ -28,7 +28,7 @@ export interface OnboardingPrefill {
   telegramDeepLink: string | null
 }
 
-const SPECIALIZATIONS: Array<{ value: string; label: string }> = [
+const SPECIALIZATIONS = [
   { value: 'REALTOR', label: 'Риелтор' },
   { value: 'INTERIOR_DESIGNER', label: 'Дизайнер интерьера' },
   { value: 'ARCHITECT', label: 'Архитектор' },
@@ -36,16 +36,19 @@ const SPECIALIZATIONS: Array<{ value: string; label: string }> = [
   { value: 'VISUALIZER_3D', label: '3D-визуализатор' },
   { value: 'PHOTO_VIDEO', label: 'Фотограф недвижимости' },
   { value: 'LANDSCAPE_DESIGNER', label: 'Ландшафтный дизайнер' },
-]
+] as const
+type Spec = (typeof SPECIALIZATIONS)[number]['value']
 
 const STEPS = ['О вас', 'Районы', 'Готово'] as const
 
 function Chip({
   active,
+  disabled,
   onClick,
   children,
 }: {
   active: boolean
+  disabled?: boolean
   onClick: () => void
   children: React.ReactNode
 }) {
@@ -53,12 +56,16 @@ function Chip({
     <button
       type="button"
       aria-pressed={active}
+      aria-disabled={disabled || undefined}
       onClick={onClick}
       className={cn(
-        'inline-flex h-11 cursor-pointer items-center rounded-full border px-4 text-sm font-medium transition-colors duration-150',
+        'inline-flex h-11 items-center rounded-full border px-4 text-sm font-medium transition-colors duration-150',
         active
-          ? 'border-foreground bg-foreground text-background'
-          : 'border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground',
+          ? 'cursor-pointer border-foreground bg-foreground text-background'
+          : disabled
+            ? // лимит достигнут: не притворяемся кликабельными
+              'cursor-default border-border bg-surface text-muted-foreground opacity-45'
+            : 'cursor-pointer border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground',
       )}
     >
       {children}
@@ -76,7 +83,7 @@ export function OnboardingWizard({
   const router = useRouter()
   const [step, setStep] = React.useState(1)
   const [name, setName] = React.useState(prefill.displayName)
-  const [spec, setSpec] = React.useState<string>(prefill.specialization ?? 'REALTOR')
+  const [spec, setSpec] = React.useState<Spec>((prefill.specialization as Spec) ?? 'REALTOR')
   const [worksAt, setWorksAt] = React.useState(prefill.worksAt)
   const [selected, setSelected] = React.useState<string[]>(prefill.districtSlugs)
 
@@ -100,7 +107,7 @@ export function OnboardingWizard({
   const submit = () =>
     setup.mutate({
       displayName: name.trim(),
-      specialization: spec as never,
+      specialization: spec,
       worksAt: worksAt.trim() || undefined,
       districtSlugs: selected,
     })
@@ -112,7 +119,11 @@ export function OnboardingWizard({
           const n = i + 1
           const state = n < step ? 'done' : n === step ? 'current' : 'next'
           return (
-            <li key={label} className="flex flex-1 items-center gap-2">
+            <li
+              key={label}
+              aria-current={state === 'current' ? 'step' : undefined}
+              className="flex flex-1 items-center gap-2"
+            >
               <span
                 className={cn(
                   'flex size-8 shrink-0 items-center justify-center rounded-full text-[13px] font-bold transition-colors',
@@ -151,9 +162,9 @@ export function OnboardingWizard({
             </div>
             <label className="block">
               <span className="mb-1.5 block text-sm font-semibold">Имя и фамилия</span>
+              {/* без autoFocus: на мобильном клавиатура прятала бы плашку и чипы */}
               <Input
                 value={name}
-                autoFocus
                 placeholder="Айгерим Токтогулова"
                 onChange={(e) => setName(e.target.value)}
               />
@@ -201,13 +212,23 @@ export function OnboardingWizard({
                 <Chip
                   key={d.slug}
                   active={selected.includes(d.slug)}
+                  disabled={
+                    !selected.includes(d.slug) && selected.length >= MAX_EXPERTISE_DISTRICTS
+                  }
                   onClick={() => toggleDistrict(d.slug)}
                 >
                   {d.name}
                 </Chip>
               ))}
             </div>
-            <p className="text-[13px] text-muted-foreground">
+            <p
+              className={cn(
+                'text-[13px]',
+                selected.length >= MAX_EXPERTISE_DISTRICTS
+                  ? 'font-medium text-foreground'
+                  : 'text-muted-foreground',
+              )}
+            >
               Выбрано: {selected.length} из {MAX_EXPERTISE_DISTRICTS}. Можно изменить в любой момент.
             </p>
           </div>
@@ -219,11 +240,12 @@ export function OnboardingWizard({
               <Check className="size-7" aria-hidden />
             </span>
             <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">
-              Профиль готов
+              {prefill.isEdit ? 'Сохранено' : 'Профиль готов'}
             </h2>
             <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-muted-foreground">
-              Осталось наполнить его работой: первая опубликованная сделка — это ваша визитка
-              и вход в каталог.
+              {prefill.isEdit
+                ? 'Изменения уже видны в каталоге и на странице профиля.'
+                : 'Осталось наполнить его работой: первая опубликованная сделка — это ваша визитка и вход в каталог.'}
             </p>
             {!prefill.telegramLinked && prefill.telegramDeepLink ? (
               <div className="mx-auto mt-5 max-w-sm rounded-xl bg-surface-muted px-4 py-4">
@@ -232,52 +254,78 @@ export function OnboardingWizard({
                   Заявки — мгновенно в Telegram
                 </p>
                 <div className="mt-3">
-                  <TelegramLinkButton deepLink={prefill.telegramDeepLink} />
+                  {/* soft: единственный primary экрана — CTA ниже */}
+                  <TelegramLinkButton deepLink={prefill.telegramDeepLink} variant="soft" />
                 </div>
               </div>
             ) : null}
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button asChild size="lg">
-                <Link href="/new">
-                  <ImagePlus aria-hidden />
-                  Добавить первую сделку
-                </Link>
-              </Button>
-              <Button asChild variant="secondary" size="lg">
-                <Link href={setup.data ? `/s/${setup.data.slug}` : '/specialists'}>
-                  Открыть профиль
-                </Link>
-              </Button>
+              {prefill.isEdit ? (
+                <>
+                  <Button asChild size="lg">
+                    <Link href={setup.data ? `/s/${setup.data.slug}` : '/specialists'}>
+                      Открыть профиль
+                    </Link>
+                  </Button>
+                  <Button asChild variant="secondary" size="lg">
+                    <Link href="/new">
+                      <ImagePlus aria-hidden />
+                      Добавить сделку
+                    </Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button asChild size="lg">
+                    <Link href="/new">
+                      <ImagePlus aria-hidden />
+                      Добавить первую сделку
+                    </Link>
+                  </Button>
+                  <Button asChild variant="secondary" size="lg">
+                    <Link href={setup.data ? `/s/${setup.data.slug}` : '/specialists'}>
+                      Открыть профиль
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         ) : null}
       </div>
 
-      {step < 3 ? (
-        <div className="mt-5 flex items-center justify-between gap-3">
-          {step > 1 ? (
-            <Button variant="ghost" size="lg" onClick={() => setStep(1)}>
-              <ArrowLeft aria-hidden />
-              Назад
-            </Button>
-          ) : (
-            <span />
-          )}
-          {step === 1 ? (
-            <Button size="lg" disabled={!canNext} onClick={() => setStep(2)}>
-              Дальше
-              <ArrowRight aria-hidden />
-            </Button>
-          ) : (
-            <Button size="lg" loading={setup.isPending} onClick={submit}>
-              {prefill.isEdit ? 'Сохранить' : 'Создать профиль'}
-              <ArrowRight aria-hidden />
-            </Button>
-          )}
-        </div>
-      ) : null}
       {setup.isError ? (
-        <p className="mt-3 text-center text-[13px] text-danger">{setup.error.message}</p>
+        <p className="mt-3 text-center text-[13px] text-danger sm:text-right">
+          {setup.error.message}
+        </p>
+      ) : null}
+
+      {step < 3 ? (
+        // действия — в зоне большого пальца: на мобильном футер прилипает к низу
+        // (тот же паттерн, что в мастере кейса)
+        <div className="sticky bottom-0 z-30 mt-5 max-sm:-mx-4 max-sm:border-t max-sm:border-border max-sm:bg-background/95 max-sm:px-4 max-sm:py-3 max-sm:backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            {step > 1 ? (
+              <Button variant="ghost" onClick={() => setStep(1)} className="shrink-0">
+                <ArrowLeft aria-hidden />
+                Назад
+              </Button>
+            ) : null}
+            <div className={cn('min-w-0 flex-1 sm:flex-none', step === 1 && 'sm:ml-auto')}>
+              {step === 1 ? (
+                <Button size="lg" disabled={!canNext} onClick={() => setStep(2)} className="w-full">
+                  Дальше
+                  <ArrowRight aria-hidden />
+                </Button>
+              ) : (
+                <Button size="lg" loading={setup.isPending} onClick={submit} className="w-full">
+                  {prefill.isEdit ? 'Сохранить' : 'Создать профиль'}
+                  <ArrowRight aria-hidden />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   )
