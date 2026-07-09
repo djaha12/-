@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Clock, MapPin, Repeat2 } from 'lucide-react'
 import { SiteFooter } from '@/components/site-footer'
@@ -170,10 +171,17 @@ export default async function ProfilePage({
             </div>
 
             <div className="flex items-center gap-2 pb-1">
-              {/* на мобильном primary живёт в нижнем баре — зона большого пальца */}
-              <Button asChild size="lg" className="max-sm:hidden">
-                <a href={`/contact/${s.slug}`}>Отправить заявку</a>
-              </Button>
+              {viewer?.specialistSlug === s.slug ? (
+                // владелец: заявку себе не шлют — вместо неё настройка профиля
+                <Button asChild variant="secondary" size="lg">
+                  <Link href="/onboarding">Настроить профиль</Link>
+                </Button>
+              ) : (
+                // на мобильном primary живёт в нижнем баре — зона большого пальца
+                <Button asChild size="lg" className="max-sm:hidden">
+                  <a href={`/contact/${s.slug}`}>Отправить заявку</a>
+                </Button>
+              )}
               <ShareButton
                 path={`/s/${s.slug}`}
                 title={s.name}

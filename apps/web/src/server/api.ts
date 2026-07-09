@@ -7,6 +7,7 @@ import {
   canModerate,
   canPublishCase,
   canRespondToBrief,
+  canSelectExpertiseDistricts,
   canSubmitReview,
   canTransitionOrder,
   derivePriceRange,
@@ -17,6 +18,7 @@ import {
   shouldFreeze,
   shouldPromoteToTrusted,
   AUTO_CONFIRM_DAYS,
+  MAX_EXPERTISE_DISTRICTS,
   SHARE_METHODS,
   SHARE_SURFACES,
   type OrderActor,
@@ -1514,6 +1516,95 @@ const notificationsRouter = t.router({
   }),
 })
 
+const SPECIALIZATIONS = [
+  'REALTOR',
+  'ARCHITECT',
+  'INTERIOR_DESIGNER',
+  'LANDSCAPE_DESIGNER',
+  'DECORATOR_STAGER',
+  'VISUALIZER_3D',
+  'PHOTO_VIDEO',
+] as const
+
+const profilesRouter = t.router({
+  /**
+   * Онбординг/настройка профиля специалиста (M6.2): имя, специализация, «работаю
+   * в X», районы экспертизы. Идемпотентен — повторный вызов редактирует. Профиль
+   * создаётся здесь (самозапись), а не только лениво при первом кейсе.
+   */
+  setup: activeProcedure
+    .input(
+      z.object({
+        displayName: z.string().trim().min(2, 'Имя — от 2 символов').max(60),
+        specialization: z.enum(SPECIALIZATIONS),
+        worksAt: z.string().trim().max(80).optional(),
+        districtSlugs: z
+          .array(z.string().max(80))
+          .max(MAX_EXPERTISE_DISTRICTS, `Не больше ${MAX_EXPERTISE_DISTRICTS} районов`)
+          .default([]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // инвариант лимита — из core (Zod дублирует для ранней ошибки формы)
+      const check = canSelectExpertiseDistricts(input.districtSlugs.length)
+      if (!check.allowed) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: check.reason })
+      }
+      // районы валидируем по справочнику — мусорные слаги молча отбрасываем
+      const districts = input.districtSlugs.length
+        ? await prisma.district.findMany({ where: { slug: { in: input.districtSlugs } } })
+        : []
+      const bishkek = await prisma.city.findUnique({ where: { slug: 'bishkek' } })
+
+      const slug = await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: ctx.user.id },
+          data: { displayName: input.displayName },
+        })
+        const existing = await tx.specialistProfile.findUnique({
+          where: { userId: ctx.user.id },
+        })
+        const profile = existing
+          ? await tx.specialistProfile.update({
+              where: { id: existing.id },
+              data: {
+                specialization: input.specialization,
+                worksAtLabel: input.worksAt || null,
+                cityId: existing.cityId ?? bishkek?.id,
+              },
+            })
+          : await tx.specialistProfile.create({
+              data: {
+                userId: ctx.user.id,
+                slug: `s-${ctx.user.id.slice(-8)}`,
+                specialization: input.specialization,
+                worksAtLabel: input.worksAt || null,
+                cityId: bishkek?.id,
+                reviewAggregate: { create: {} },
+              },
+            })
+        // полная замена набора районов (как styleIds по контракту docs/12 §7)
+        await tx.specialistDistrict.deleteMany({ where: { specialistProfileId: profile.id } })
+        if (districts.length) {
+          await tx.specialistDistrict.createMany({
+            data: districts.map((d) => ({ specialistProfileId: profile.id, districtId: d.id })),
+          })
+        }
+        // роль повышаем только клиенту (модератор/админ не теряет доступ)
+        if (ctx.user.role === 'CLIENT') {
+          await tx.user.update({ where: { id: ctx.user.id }, data: { role: 'SPECIALIST' } })
+        }
+        await track(tx, 'onboarding_completed', ctx.user.id, {
+          specialization: input.specialization.toLowerCase(),
+          districts: districts.length,
+          isEdit: Boolean(existing),
+        })
+        return profile.slug
+      })
+      return { slug }
+    }),
+})
+
 /**
  * Backstop против накрутки/спама публичного analytics.share: фиксированное окно в
  * памяти процесса. Best-effort (в multi-instance у каждого инстанса своя память) —
@@ -1587,6 +1678,7 @@ export const appRouter = t.router({
   admin: adminRouter,
   promo: promoRouter,
   notifications: notificationsRouter,
+  profiles: profilesRouter,
   analytics: analyticsRouter,
 })
 

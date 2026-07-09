@@ -9,8 +9,8 @@ import { trpc } from '@/lib/trpc'
 
 const normalizePhone = (raw: string) => `+${raw.replace(/\D/g, '')}`
 
-/** Вход в 2 шага: телефон → код. Код приходит в Telegram, SMS — запасной канал. */
-export function LoginForm({ initialStep = 1 }: { initialStep?: number }) {
+/** Вход в 2 шага: телефон → код. Код приходит в Telegram. */
+export function LoginForm({ initialStep = 1, next }: { initialStep?: number; next?: string }) {
   const router = useRouter()
   const [step, setStep] = React.useState(initialStep)
   const [phone, setPhone] = React.useState(initialStep > 1 ? '+996 555 123 456' : '+996 ')
@@ -34,7 +34,7 @@ export function LoginForm({ initialStep = 1 }: { initialStep?: number }) {
   })
   const verifyOtp = trpc.auth.verifyOtp.useMutation({
     onSuccess: () => {
-      router.push('/')
+      router.push(next ?? '/')
       router.refresh()
     },
   })

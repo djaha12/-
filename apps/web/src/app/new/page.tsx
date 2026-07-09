@@ -1,8 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CaseWizard } from '@/components/case-wizard'
+import { getSessionUser } from '@/server/auth'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Новый кейс',
@@ -14,6 +18,10 @@ export default async function NewCasePage({
   searchParams: Promise<{ step?: string; type?: string }>
 }) {
   const { step, type } = await searchParams
+  const user = await getSessionUser()
+  // регистрация в момент ценности; новичок сначала собирает профиль (M6.2)
+  if (!user) redirect('/login?next=/new')
+  if (!user.specialistSlug) redirect('/onboarding')
 
   return (
     <>
@@ -22,7 +30,7 @@ export default async function NewCasePage({
         <div className="mx-auto flex h-16 max-w-2xl items-center justify-between px-4 sm:px-6">
           <span className="font-display text-[22px] font-semibold tracking-tight">Новый кейс</span>
           <Button asChild variant="ghost" size="icon" aria-label="Закрыть мастер">
-            <Link href="/s/nurlan-abdykadyrov">
+            <Link href={`/s/${user.specialistSlug}`}>
               <X />
             </Link>
           </Button>

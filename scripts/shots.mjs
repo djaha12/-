@@ -24,9 +24,12 @@ const ROUTES = [
   { name: 'profile-realtor', path: '/s/nurlan-abdykadyrov' },
   { name: 'case-deal', path: '/case/dvushka-toktogula' },
   { name: 'specialists', path: '/specialists' },
-  { name: 'wizard-1', path: '/new' },
-  { name: 'wizard-2', path: '/new?step=2' },
-  { name: 'wizard-3', path: '/new?step=3' },
+  { name: 'wizard-1', path: '/new', auth: 'spec' },
+  { name: 'wizard-2', path: '/new?step=2', auth: 'spec' },
+  { name: 'wizard-3', path: '/new?step=3', auth: 'spec' },
+  // M6.2: онбординг — новый специалист (клиент без профиля) и редактирование (Нурлан)
+  { name: 'onboarding', path: '/onboarding', auth: true },
+  { name: 'onboarding-edit', path: '/onboarding', auth: 'spec' },
   { name: 'login', path: '/login' },
   { name: 'login-otp', path: '/login?step=2' },
   // M4: экраны под сессией клиента (Гульмира из сида)

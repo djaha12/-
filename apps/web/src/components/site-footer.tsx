@@ -1,6 +1,14 @@
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
+const FOOTER_HREF: Record<string, string> = {
+  Проекты: '/',
+  Специалисты: '/specialists',
+  'Создать бриф': '/briefs/new',
+  'Разместить портфолио': '/onboarding',
+  Тарифы: '/pro',
+}
+
 const COLUMNS = [
   {
     title: 'Клиентам',
@@ -35,7 +43,7 @@ export function SiteFooter({ className }: { className?: string }) {
               {col.links.map((l) => (
                 <li key={l}>
                   <Link
-                    href={l === 'Тарифы' ? '/pro' : '#'}
+                    href={FOOTER_HREF[l] ?? '#'}
                     className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                   >
                     {l}

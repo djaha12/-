@@ -133,7 +133,7 @@ export async function SiteHeader() {
               </Button>
               {/* один терракотовый primary на экран — у хедера только soft */}
               <Button asChild variant="soft" size="sm" className="hidden md:inline-flex">
-                <Link href="/new">Я специалист</Link>
+                <Link href="/onboarding">Я специалист</Link>
               </Button>
             </>
           )}

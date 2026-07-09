@@ -9,9 +9,11 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ step?: string }>
+  searchParams: Promise<{ step?: string; next?: string }>
 }) {
-  const { step } = await searchParams
+  const { step, next } = await searchParams
+  // intent переживает логин: только внутренние пути (не '//host' и не внешние URL)
+  const safeNext = next && /^\/(?!\/)/.test(next) ? next : undefined
 
   return (
     <main className="flex min-h-dvh flex-col px-4">
@@ -21,7 +23,7 @@ export default async function LoginPage({
         </Link>
       </header>
       <div className="flex flex-1 items-start justify-center pt-[12vh] pb-16">
-        <LoginForm initialStep={step ? Number(step) : 1} />
+        <LoginForm initialStep={step ? Number(step) : 1} next={safeNext} />
       </div>
     </main>
   )

@@ -6,6 +6,19 @@ import { canSubmitReview, isValidScores, overallScore } from './reviews'
 import { CONTACT_PLACEHOLDER, hideContacts } from './contacts'
 import { canModerate, needsPremoderation, shouldFreeze, shouldPromoteToTrusted } from './moderation'
 import { normalizeLeadSource } from './analytics'
+import { canSelectExpertiseDistricts, MAX_EXPERTISE_DISTRICTS } from './profile'
+
+describe('районы экспертизы', () => {
+  it('до лимита включительно — можно', () => {
+    expect(canSelectExpertiseDistricts(0).allowed).toBe(true)
+    expect(canSelectExpertiseDistricts(MAX_EXPERTISE_DISTRICTS).allowed).toBe(true)
+  })
+  it('сверх лимита — отказ с человеческой причиной', () => {
+    const check = canSelectExpertiseDistricts(MAX_EXPERTISE_DISTRICTS + 1)
+    expect(check.allowed).toBe(false)
+    if (!check.allowed) expect(check.reason).toMatch(/район/)
+  })
+})
 
 describe('атрибуция источника заявки', () => {
   it('пусто → direct', () => {
