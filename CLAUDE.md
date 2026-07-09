@@ -27,7 +27,11 @@ publicProcedure, вайтлист surface/method/slug) → share-rate; атри�
 в sessionStorage (RefCapture в layout) → source на `lead_created` (normalizeLeadSource в core:
 direct/share/other); расшаренная ссылка несёт ?ref=share. Закрывает «слепоту петли» из
 docs/06 §13.1 (share-rate и «визитка→заявка» раньше не мерились).
-Смоуки: M4 21/21, M4.5 24/24, M5 23/23, M6 20/20, M7 17/17, M8 9/9 (scripts/smoke-*.mjs). Тесты core 34/34.
+**M6.2**: онбординг специалиста — /onboarding (3 шага: имя+специализация, районы ≤5 из core,
+Telegram+первый кейс), profiles.setup идемпотентен (редактирование), контакт-детект на
+displayName/worksAt при записи, промоушен роли CLIENT→SPECIALIST; входы: шапка/футер//new без
+профиля; /login?next= (валидация URL-парсером); владельцу профиля — «Настроить профиль».
+Смоуки: M4 21/21, M4.5 24/24, M5 23/23, M6 20/20, M7 17/17, M8 9/9, M9 14/14 (scripts/smoke-*.mjs). Тесты core 36/36.
 Dev-БД: `pnpm db:start` (PG16 без Docker); `OTP_DEV_MODE=1` — код ТОЛЬКО тестовым +9967000XXXXX.
 **Deploy-ready на Vercel** (docs/07): storage-абстракция Vercel Blob + FS-fallback (нет токена → ФС),
 Prisma binaryTargets rhel + directUrl + generate в билде + fail-fast DATABASE_URL, next.config
