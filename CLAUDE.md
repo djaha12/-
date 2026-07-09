@@ -38,7 +38,8 @@ Prisma binaryTargets rhel + directUrl + generate в билде + fail-fast DATAB
 (remotePatterns Blob / outputFileTracing движка+OG-шрифтов / security-headers), vercel.json cron,
 клиентский downscale (лимит тела ~4.5 МБ), безопасность (песочница OTP гейт VERCEL_ENV, ANON_REPORT_SALT
 fail-closed, /dev/ui скрыт), SEED_DEMO=0 = только справочники. Смоуки зелёные в prod-сборке.
-Открыто: реальная доставка OTP (SMS/Telegram Gateway) не реализована — демо через OTP_DEV_MODE на preview.
+OTP: Telegram Gateway реализован (server/otp-gateway.ts, вкл. TELEGRAM_GATEWAY_TOKEN; сбой доставки
+расходует rate-limit — не self-DoS); без токена — демо через OTP_DEV_MODE на preview. SMS-фолбэк — Фаза 1.5.
 Маркетинг: docs/06-go-to-market.md (GTM+SMM пилота, validation-first после двойной критики).
 Дальше: реальный OTP-провайдер / i18n ru/ky/en + онбординг / web-push+дайджест / оплата (Фаза 1.5).
 
