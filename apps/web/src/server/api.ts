@@ -222,16 +222,16 @@ const casesRouter = t.router({
           kind: z.enum(['deal', 'project']),
           title: z.string().trim().min(3, 'Название — от 3 символов').max(120),
           images: z.array(uploadedImage).min(1, 'Добавьте хотя бы одно фото').max(20),
-          districtName: z.string().optional(),
+          districtName: z.string().max(80).optional(),
           consent: z.boolean(),
           // сделка
           dealType: z.enum(['sale', 'rentOut', 'buyAssist']).optional(),
-          propertyType: z.string().optional(),
+          propertyType: z.string().max(80).optional(),
           price: z.number().int().positive().max(2_000_000_000).optional(),
           priceVisibility: z.enum(['exact', 'range', 'hidden']).default('range'),
           daysOnMarket: z.number().int().positive().max(999).optional(),
           // проект
-          styleName: z.string().optional(),
+          styleName: z.string().max(80).optional(),
           areaM2: z.number().positive().optional(),
         })
         .refine((v) => v.kind !== 'deal' || v.dealType, { message: 'Выберите тип сделки' })
