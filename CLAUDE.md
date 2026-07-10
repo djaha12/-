@@ -37,8 +37,11 @@ URL-префиксов (SEO ru-first, docs/03 §21), getDict()/useI18n, живо
 ленты (trust-строка, специализации, бейджи сделок, валюта; pluralize по локали; deal-labels —
 универсальный модуль: чистые функции нельзя звать из 'use client' на сервере) и **M10.3** страница
 кейса (факты сделки, CTA, отзыв+подшкалы, ползунок до/после, форма жалобы целиком, галерея «Все N
-фото», aria; metadata/OG/JSON-LD осознанно ru). Дальше по i18n: профиль/мастера.
-Смоуки: M4 21/21, M4.5 24/24, M5 23/23, M6 20/20, M7 17/17, M8 9/9, M9 14/14, M10 19/19 (scripts/smoke-*.mjs). Тесты core 36/36.
+фото», aria; metadata/OG/JSON-LD осознанно ru) и **M10.4** профиль (хиро/статистика/табы/отзывы,
+рейтинг formatRating по локали: en «4.8») + мастера кейса и онбординга целиком + share/telegram-link;
+данные-чипы (районы/объект/стили) осознанно ru; ky-термины: буйрутма, «бүтүмдү кардарлар ырастаган».
+Дальше по i18n: вычитка ky носителем, бренд «Ателье/Atelier» в en-хроме — решение за Dars.
+Смоуки: M4 21/21, M4.5 24/24, M5 23/23, M6 20/20, M7 17/17, M8 9/9, M9 14/14, M10 25/25 (scripts/smoke-*.mjs). Тесты core 36/36.
 Dev-БД: `pnpm db:start` (PG16 без Docker); `OTP_DEV_MODE=1` — код ТОЛЬКО тестовым +9967000XXXXX.
 **Deploy-ready на Vercel** (docs/07): storage-абстракция Vercel Blob + FS-fallback (нет токена → ФС),
 Prisma binaryTargets rhel + directUrl + generate в билде + fail-fast DATABASE_URL, next.config
@@ -48,7 +51,7 @@ fail-closed, /dev/ui скрыт), SEED_DEMO=0 = только справочни�
 OTP: Telegram Gateway реализован (server/otp-gateway.ts, вкл. TELEGRAM_GATEWAY_TOKEN; сбой доставки
 расходует rate-limit — не self-DoS); без токена — демо через OTP_DEV_MODE на preview. SMS-фолбэк — Фаза 1.5.
 Маркетинг: docs/06-go-to-market.md (GTM+SMM пилота, validation-first после двойной критики).
-Дальше: i18n профиля/мастеров / web-push+дайджест / оплата (Фаза 1.5).
+Дальше: web-push+дайджест / оплата (Фаза 1.5) / i18n-вычитка ky.
 
 ## Документы
 - docs/02 план (M1–M7 + realtor-дельты) · docs/03 решения (§12 дефолты, §13 realtor-first,
