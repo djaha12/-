@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { LOCALE_COOKIE, LOCALE_LABEL, LOCALES } from '@/i18n/dictionaries'
+import { LOCALE_COOKIE, LOCALE_LABEL, LOCALES, type Locale } from '@/i18n/dictionaries'
 import { useI18n } from '@/i18n/client'
 import { cn } from '@/lib/utils'
 
@@ -10,7 +10,7 @@ export function LocaleSwitcher() {
   const router = useRouter()
   const { locale } = useI18n()
 
-  const switchTo = (l: string) => {
+  const switchTo = (l: Locale) => {
     document.cookie = `${LOCALE_COOKIE}=${l}; path=/; max-age=31536000; samesite=lax`
     router.refresh()
   }

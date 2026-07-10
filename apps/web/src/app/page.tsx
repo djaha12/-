@@ -51,9 +51,9 @@ export default async function FeedPage({
   const items = await markSaved(await getFeedCases({ kind, confirmedOnly }), user?.id)
   const { t } = await getDict()
 
-  const base = (t?: string, c?: boolean) => {
+  const base = (typeParam?: string, c?: boolean) => {
     const p = new URLSearchParams()
-    if (t) p.set('type', t)
+    if (typeParam) p.set('type', typeParam)
     if (c) p.set('confirmed', '1')
     const s = p.toString()
     return s ? `/?${s}` : '/'

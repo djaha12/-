@@ -55,7 +55,6 @@ const ru = {
     privacy: 'Конфиденциальность',
     support: 'Поддержка',
     copyright: '© 2026 Ателье · Бишкек',
-    language: 'Язык',
   },
   login: {
     title: 'Вход или регистрация',
@@ -154,7 +153,6 @@ const ky: Dict = {
     privacy: 'Купуялык',
     support: 'Колдоо',
     copyright: '© 2026 Ателье · Бишкек',
-    language: 'Тил',
   },
   login: {
     title: 'Кирүү же катталуу',
@@ -249,7 +247,6 @@ const en: Dict = {
     privacy: 'Privacy',
     support: 'Support',
     copyright: '© 2026 Atelier · Bishkek',
-    language: 'Language',
   },
   login: {
     title: 'Sign in or sign up',
@@ -315,6 +312,6 @@ export function isLocale(v: string | undefined | null): v is Locale {
 /** Подстановка {переменных}: fmt('через {n} сек', { n: 42 }) */
 export function fmt(template: string, vars: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (_, k: string) =>
-    k in vars ? String(vars[k]) : `{${k}}`,
+    Object.hasOwn(vars, k) ? String(vars[k]) : `{${k}}`,
   )
 }
