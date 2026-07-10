@@ -43,7 +43,7 @@ export async function SiteFooter({ className }: { className?: string }) {
     <footer className={cn('border-t border-border bg-surface', className)}>
       <div className="mx-auto grid max-w-[1360px] gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
-          <p className="font-display text-[22px] font-semibold tracking-tight">Ателье</p>
+          <p className="font-display text-[22px] font-semibold tracking-tight">{t.footer.atelier}</p>
           <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
             {t.footer.tagline}
           </p>

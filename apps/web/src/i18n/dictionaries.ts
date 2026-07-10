@@ -260,7 +260,7 @@ const en: Dict = {
     devCode: 'Dev mode: your code is {code}',
     codeLabel: 'Verification code',
     signIn: 'Sign in',
-    resendIn: 'Nothing yet? We can resend in {n} s',
+    resendIn: 'Nothing yet? We can resend in {n} sec',
     resend: 'Send again',
     legalPrefix: 'By continuing you accept the',
     legalTerms: 'terms of service',
