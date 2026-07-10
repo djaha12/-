@@ -35,9 +35,10 @@ displayName/worksAt при записи, промоушен роли CLIENT→SP
 URL-префиксов (SEO ru-first, docs/03 §21), getDict()/useI18n, живой переключатель в футере,
 <html lang>; переведён хром (шапка/футер/логин/лента/каталог) и **M10.2** карточки каталога и
 ленты (trust-строка, специализации, бейджи сделок, валюта; pluralize по локали; deal-labels —
-универсальный модуль: чистые функции нельзя звать из 'use client' на сервере). Дальше по i18n:
-страница кейса/профиль/мастера.
-Смоуки: M4 21/21, M4.5 24/24, M5 23/23, M6 20/20, M7 17/17, M8 9/9, M9 14/14, M10 16/16 (scripts/smoke-*.mjs). Тесты core 36/36.
+универсальный модуль: чистые функции нельзя звать из 'use client' на сервере) и **M10.3** страница
+кейса (факты сделки, CTA, отзыв+подшкалы, ползунок до/после, форма жалобы целиком, галерея «Все N
+фото», aria; metadata/OG/JSON-LD осознанно ru). Дальше по i18n: профиль/мастера.
+Смоуки: M4 21/21, M4.5 24/24, M5 23/23, M6 20/20, M7 17/17, M8 9/9, M9 14/14, M10 19/19 (scripts/smoke-*.mjs). Тесты core 36/36.
 Dev-БД: `pnpm db:start` (PG16 без Docker); `OTP_DEV_MODE=1` — код ТОЛЬКО тестовым +9967000XXXXX.
 **Deploy-ready на Vercel** (docs/07): storage-абстракция Vercel Blob + FS-fallback (нет токена → ФС),
 Prisma binaryTargets rhel + directUrl + generate в билде + fail-fast DATABASE_URL, next.config
@@ -47,7 +48,7 @@ fail-closed, /dev/ui скрыт), SEED_DEMO=0 = только справочни�
 OTP: Telegram Gateway реализован (server/otp-gateway.ts, вкл. TELEGRAM_GATEWAY_TOKEN; сбой доставки
 расходует rate-limit — не self-DoS); без токена — демо через OTP_DEV_MODE на preview. SMS-фолбэк — Фаза 1.5.
 Маркетинг: docs/06-go-to-market.md (GTM+SMM пилота, validation-first после двойной критики).
-Дальше: i18n страницы кейса/профиля/мастеров / web-push+дайджест / оплата (Фаза 1.5).
+Дальше: i18n профиля/мастеров / web-push+дайджест / оплата (Фаза 1.5).
 
 ## Документы
 - docs/02 план (M1–M7 + realtor-дельты) · docs/03 решения (§12 дефолты, §13 realtor-first,
