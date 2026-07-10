@@ -22,6 +22,14 @@ MODERATOR/ADMIN (остальным 404): одобрить/отклонить с
 (deep-link привязка, /stop; без токена деградирует в in-app); монетизация — лимиты Free
 включены через core (5 кейсов/10 откликов), PRO промокодом (ATELIER-LAUNCH в сиде),
 PRO-приоритет каталога + бейдж; PWA-манифест.
+**M11**: web-push — третий канал (VAPID из env, без ключей секция скрыта и канал молчит;
+sw.js только push, без offline-кэша; тумблер в /settings/notifications, secondary — primary
+у Telegram; кап 10 подписок/юзер, upsert по endpoint = подписка принадлежит браузеру;
+404/410 чистятся; отправки Promise.allSettled) + ежедневный дайджест непрочитанного
+(/api/cron/digest 5:00 UTC, Bearer CRON_SECRET; уведомления + чужие сообщения незаглушённых
+чатов с прошлого дайджеста; TG приоритетно, иначе push; User.lastDigestAt двигается ТОЛЬКО
+при доставке; курсорный проход, повтор ≥20ч; второй cron в vercel.json — лимит Hobby ровно 2).
+Страница настроек уведомлений переведена ×3 (title по языку — приватная, вне «metadata ru»).
 **M8** (инструментовка петли): событие `content_shared` от кнопки «Поделиться» (analytics.share,
 publicProcedure, вайтлист surface/method/slug) → share-rate; атрибуция заявки — `?ref=` first-touch
 в sessionStorage (RefCapture в layout) → source на `lead_created` (normalizeLeadSource в core:
@@ -41,7 +49,7 @@ URL-префиксов (SEO ru-first, docs/03 §21), getDict()/useI18n, живо
 рейтинг formatRating по локали: en «4.8») + мастера кейса и онбординга целиком + share/telegram-link;
 данные-чипы (районы/объект/стили) осознанно ru; ky-термины: буйрутма, «бүтүмдү кардарлар ырастаган».
 Дальше по i18n: вычитка ky носителем, бренд «Ателье/Atelier» в en-хроме — решение за Dars.
-Смоуки: M4 21/21, M4.5 24/24, M5 23/23, M6 20/20, M7 17/17, M8 9/9, M9 14/14, M10 25/25 (scripts/smoke-*.mjs). Тесты core 36/36.
+Смоуки: M4 21/21, M4.5 24/24, M5 23/23, M6 20/20, M7 17/17, M8 9/9, M9 14/14, M10 25/25, M11 13/13 (scripts/smoke-*.mjs). Тесты core 36/36.
 Dev-БД: `pnpm db:start` (PG16 без Docker); `OTP_DEV_MODE=1` — код ТОЛЬКО тестовым +9967000XXXXX.
 **Deploy-ready на Vercel** (docs/07): storage-абстракция Vercel Blob + FS-fallback (нет токена → ФС),
 Prisma binaryTargets rhel + directUrl + generate в билде + fail-fast DATABASE_URL, next.config
@@ -51,7 +59,7 @@ fail-closed, /dev/ui скрыт), SEED_DEMO=0 = только справочни�
 OTP: Telegram Gateway реализован (server/otp-gateway.ts, вкл. TELEGRAM_GATEWAY_TOKEN; сбой доставки
 расходует rate-limit — не self-DoS); без токена — демо через OTP_DEV_MODE на preview. SMS-фолбэк — Фаза 1.5.
 Маркетинг: docs/06-go-to-market.md (GTM+SMM пилота, validation-first после двойной критики).
-Дальше: web-push+дайджест / оплата (Фаза 1.5) / i18n-вычитка ky.
+Дальше: оплата (Фаза 1.5) / i18n-вычитка ky / бренд «Ателье/Atelier» в en — решение за Dars.
 
 ## Документы
 - docs/02 план (M1–M7 + realtor-дельты) · docs/03 решения (§12 дефолты, §13 realtor-first,
