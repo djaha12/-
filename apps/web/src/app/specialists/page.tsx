@@ -5,6 +5,8 @@ import { EmptyState } from '@/components/empty-state'
 import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { SpecialistCard } from '@/components/specialist-card'
+import { getDict } from '@/i18n/server'
+import { fmt, type Dict } from '@/i18n/dictionaries'
 import { getDistricts, getSpecialists } from '@/server/data'
 import { cn } from '@/lib/utils'
 
@@ -17,16 +19,18 @@ export const metadata: Metadata = {
 }
 
 // риелторы — приоритетная вертикаль: сразу после «Все»
-const FILTERS: Array<{ label: string; value?: string }> = [
-  { label: 'Все' },
-  { label: 'Риелторы', value: 'REALTOR' },
-  { label: 'Дизайн интерьера', value: 'INTERIOR_DESIGNER' },
-  { label: 'Архитектура', value: 'ARCHITECT' },
-  { label: 'Ландшафт', value: 'LANDSCAPE_DESIGNER' },
-  { label: 'Хоумстейджинг', value: 'DECORATOR_STAGER' },
-  { label: '3D', value: 'VISUALIZER_3D' },
-  { label: 'Фото', value: 'PHOTO_VIDEO' },
-]
+function filters(t: Dict): Array<{ label: string; value?: string }> {
+  return [
+    { label: t.catalog.all },
+    { label: t.catalog.realtors, value: 'REALTOR' },
+    { label: t.catalog.interior, value: 'INTERIOR_DESIGNER' },
+    { label: t.catalog.architecture, value: 'ARCHITECT' },
+    { label: t.catalog.landscape, value: 'LANDSCAPE_DESIGNER' },
+    { label: t.catalog.staging, value: 'DECORATOR_STAGER' },
+    { label: t.catalog.viz3d, value: 'VISUALIZER_3D' },
+    { label: t.catalog.photo, value: 'PHOTO_VIDEO' },
+  ]
+}
 
 function chipHref(params: { spec?: string; district?: string; q?: string }) {
   const p = new URLSearchParams()
@@ -47,6 +51,7 @@ export default async function SpecialistsPage({
     getSpecialists({ specialization: spec, districtSlug: district, q }),
     getDistricts(),
   ])
+  const { t } = await getDict()
   // район имеет смысл в первую очередь для риелторов
   const showDistricts = !spec || spec === 'REALTOR'
 
@@ -56,28 +61,28 @@ export default async function SpecialistsPage({
       <main className="mx-auto max-w-[1160px] px-4 pb-20 sm:px-6">
         <section className="pt-10 pb-6 sm:pt-14">
           <h1 className="font-display text-[32px] leading-[1.12] font-semibold tracking-tight sm:text-5xl">
-            Специалисты
+            {t.catalog.title}
           </h1>
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted-foreground sm:text-base">
             {q ? (
               <>
-                Результаты по запросу «{q}» ·{' '}
+                {fmt(t.catalog.resultsFor, { q })} ·{' '}
                 <Link href={chipHref({ spec, district })} className="font-medium text-foreground underline underline-offset-2">
-                  сбросить
+                  {t.catalog.reset}
                 </Link>
               </>
             ) : (
-              'Выбирайте по реальным работам и отзывам — они оставляются только по завершённым заказам.'
+              t.catalog.subtitle
             )}
           </p>
         </section>
 
         <section
-          aria-label="Фильтры"
+          aria-label={t.catalog.filters}
           className="sticky top-16 z-30 -mx-4 border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6"
         >
           <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {FILTERS.map((f) => (
+            {filters(t).map((f) => (
               <Link
                 key={f.label}
                 href={chipHref({ spec: f.value, district, q })}
@@ -95,7 +100,7 @@ export default async function SpecialistsPage({
           </div>
           {showDistricts ? (
             <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <span className="shrink-0 text-[13px] text-muted-foreground">Район:</span>
+              <span className="shrink-0 text-[13px] text-muted-foreground">{t.catalog.district}</span>
               {districts.slice(0, 6).map((d) => {
                 const active = district === d.slug
                 return (
@@ -122,12 +127,12 @@ export default async function SpecialistsPage({
           <div className="mt-10">
             <EmptyState
               icon={SearchX}
-              title="Никого не нашлось"
-              description="Попробуйте убрать фильтры или изменить запрос — специалистов в каталоге больше, чем кажется."
+              title={t.catalog.emptyTitle}
+              description={t.catalog.emptyDesc}
             />
           </div>
         ) : (
-          <section aria-label="Список специалистов" className="mt-6 grid gap-5 lg:grid-cols-2">
+          <section aria-label={t.catalog.list} className="mt-6 grid gap-5 lg:grid-cols-2">
             {items.map(({ specialist, thumbs }) => (
               <SpecialistCard key={specialist.slug} specialist={specialist} thumbs={thumbs} />
             ))}

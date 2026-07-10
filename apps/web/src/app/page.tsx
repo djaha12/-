@@ -6,6 +6,7 @@ import { CaseCard } from '@/components/case-card'
 import { EmptyState } from '@/components/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SearchX } from 'lucide-react'
+import { getDict } from '@/i18n/server'
 import { getSessionUser } from '@/server/auth'
 import { getFeedCases, markSaved } from '@/server/data'
 import { cn } from '@/lib/utils'
@@ -48,6 +49,7 @@ export default async function FeedPage({
 
   const user = await getSessionUser()
   const items = await markSaved(await getFeedCases({ kind, confirmedOnly }), user?.id)
+  const { t } = await getDict()
 
   const base = (t?: string, c?: boolean) => {
     const p = new URLSearchParams()
@@ -63,34 +65,33 @@ export default async function FeedPage({
       <main className="mx-auto max-w-[1360px] px-4 pb-20 sm:px-6">
         <section className="pt-10 pb-8 sm:pt-14 sm:pb-10">
           <h1 className="max-w-3xl font-display text-[34px] leading-[1.12] font-semibold tracking-tight text-balance sm:text-5xl">
-            Реальные проекты. Проверенные специалисты.
+            {t.home.title}
           </h1>
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted-foreground sm:text-base">
-            Интерьеры, архитектура и сделки риелторов Кыргызстана — с отзывами только по
-            завершённым заказам.
+            {t.home.subtitle}
           </p>
         </section>
 
         <section
-          aria-label="Фильтры"
+          aria-label={t.home.filters}
           className="sticky top-16 z-30 -mx-4 border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6"
         >
           <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <ChipLink href={base()} active={!kind}>
-              Все
+              {t.home.all}
             </ChipLink>
             <ChipLink href={base('deals')} active={kind === 'deals' && !confirmedOnly}>
-              Сделки риелторов
+              {t.home.deals}
             </ChipLink>
             <ChipLink href={base('projects')} active={kind === 'projects'}>
-              Проекты
+              {t.home.projects}
             </ChipLink>
             {kind === 'deals' ? (
               <>
                 <span className="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden />
                 <ChipLink href={base('deals', !confirmedOnly)} active={confirmedOnly}>
                   <BadgeCheck className="size-4" aria-hidden />
-                  Подтверждённые клиентом
+                  {t.home.confirmedOnly}
                 </ChipLink>
               </>
             ) : null}
@@ -101,14 +102,14 @@ export default async function FeedPage({
           <div className="mt-10">
             <EmptyState
               icon={SearchX}
-              title="Здесь пока пусто"
-              description="По этому фильтру ничего не нашлось. Посмотрите все проекты — или станьте первым, кто опубликует такой кейс."
+              title={t.home.emptyTitle}
+              description={t.home.emptyDesc}
             />
           </div>
         ) : (
           <>
             <section
-              aria-label="Лента проектов"
+              aria-label={t.home.feed}
               className="mt-6 columns-2 gap-5 md:columns-3 xl:columns-4"
             >
               {items.map((item) => (

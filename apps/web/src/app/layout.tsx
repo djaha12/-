@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import { ThemeProvider } from 'next-themes'
 import { RefCapture } from '@/components/ref-capture'
+import { I18nProvider } from '@/i18n/client'
+import { getLocale } from '@/i18n/server'
 import { TrpcProvider } from '@/lib/trpc'
 import { SITE_NAME, SITE_URL } from '@/lib/site'
 import '@fontsource-variable/manrope'
@@ -26,13 +28,16 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale()
   return (
-    <html lang="ru" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body>
         <RefCapture />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-          <TrpcProvider>{children}</TrpcProvider>
+          <I18nProvider locale={locale}>
+            <TrpcProvider>{children}</TrpcProvider>
+          </I18nProvider>
         </ThemeProvider>
       </body>
     </html>

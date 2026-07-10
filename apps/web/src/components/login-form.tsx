@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useI18n } from '@/i18n/client'
+import { fmt } from '@/i18n/dictionaries'
 import { trpc } from '@/lib/trpc'
 
 const normalizePhone = (raw: string) => `+${raw.replace(/\D/g, '')}`
@@ -12,6 +14,7 @@ const normalizePhone = (raw: string) => `+${raw.replace(/\D/g, '')}`
 /** Вход в 2 шага: телефон → код. Код приходит в Telegram. */
 export function LoginForm({ initialStep = 1, next }: { initialStep?: number; next?: string }) {
   const router = useRouter()
+  const { t } = useI18n()
   const [step, setStep] = React.useState(initialStep)
   const [phone, setPhone] = React.useState(initialStep > 1 ? '+996 555 123 456' : '+996 ')
   const [code, setCode] = React.useState('')
@@ -20,8 +23,8 @@ export function LoginForm({ initialStep = 1, next }: { initialStep?: number; nex
 
   React.useEffect(() => {
     if (resendIn <= 0) return
-    const t = setInterval(() => setResendIn((s) => s - 1), 1000)
-    return () => clearInterval(t)
+    const timer = setInterval(() => setResendIn((s) => s - 1), 1000)
+    return () => clearInterval(timer)
   }, [resendIn])
 
   const requestOtp = trpc.auth.requestOtp.useMutation({
@@ -44,13 +47,13 @@ export function LoginForm({ initialStep = 1, next }: { initialStep?: number; nex
   return (
     <div className="w-full max-w-sm">
       <h1 className="text-center font-display text-3xl font-semibold tracking-tight">
-        {step === 1 ? 'Вход или регистрация' : 'Код из Telegram'}
+        {step === 1 ? t.login.title : t.login.codeTitle}
       </h1>
 
       {step === 1 ? (
         <>
           <p className="mt-2 text-center text-[15px] leading-relaxed text-muted-foreground">
-            Один номер — и для клиентов, и для специалистов.
+            {t.login.subtitle}
           </p>
           <form
             className="mt-6 space-y-3"
@@ -60,7 +63,7 @@ export function LoginForm({ initialStep = 1, next }: { initialStep?: number; nex
             }}
           >
             <label className="block">
-              <span className="sr-only">Номер телефона</span>
+              <span className="sr-only">{t.login.phoneLabel}</span>
               <Input
                 type="tel"
                 inputMode="tel"
@@ -76,39 +79,40 @@ export function LoginForm({ initialStep = 1, next }: { initialStep?: number; nex
               <p className="text-center text-[13px] text-danger">{requestOtp.error.message}</p>
             ) : null}
             <Button type="submit" size="lg" className="w-full" loading={requestOtp.isPending}>
-              Получить код
+              {t.login.getCode}
             </Button>
           </form>
           <p className="mt-3 flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
             <Send className="size-3.5" aria-hidden />
-            Код придёт в Telegram
+            {t.login.codeHint}
           </p>
           <p className="mt-6 text-center text-xs leading-relaxed text-muted-foreground">
-            Продолжая, вы принимаете{' '}
+            {t.login.legalPrefix}{' '}
             <a href="#" className="underline underline-offset-2 hover:text-foreground">
-              условия сервиса
+              {t.login.legalTerms}
             </a>{' '}
-            и{' '}
+            {t.login.legalAnd}{' '}
             <a href="#" className="underline underline-offset-2 hover:text-foreground">
-              политику конфиденциальности
+              {t.login.legalPrivacy}
             </a>
+            {t.login.legalSuffix ? <> {t.login.legalSuffix}</> : null}
           </p>
         </>
       ) : (
         <>
           <p className="mt-2 text-center text-[15px] leading-relaxed text-muted-foreground">
-            Отправили на {phone}.{' '}
+            {fmt(t.login.sentTo, { phone })}{' '}
             <button
               type="button"
               onClick={() => setStep(1)}
               className="cursor-pointer font-medium text-foreground underline underline-offset-2"
             >
-              Изменить номер
+              {t.login.changeNumber}
             </button>
           </p>
           {devCode ? (
             <p className="mx-auto mt-3 w-fit rounded-full bg-accent-soft px-4 py-1.5 text-[13px] font-semibold text-accent-soft-foreground">
-              Dev-режим: ваш код {devCode}
+              {fmt(t.login.devCode, { code: devCode })}
             </p>
           ) : null}
           <form
@@ -119,7 +123,7 @@ export function LoginForm({ initialStep = 1, next }: { initialStep?: number; nex
             }}
           >
             <label className="block">
-              <span className="sr-only">Код подтверждения</span>
+              <span className="sr-only">{t.login.codeLabel}</span>
               <Input
                 inputMode="numeric"
                 autoComplete="one-time-code"
@@ -142,19 +146,19 @@ export function LoginForm({ initialStep = 1, next }: { initialStep?: number; nex
               disabled={code.length !== 6}
               loading={verifyOtp.isPending}
             >
-              Войти
+              {t.login.signIn}
             </Button>
           </form>
           <p className="mt-3 text-center text-[13px] text-muted-foreground">
             {resendIn > 0 ? (
-              <>Не пришло? Отправим снова через {resendIn} сек</>
+              <>{fmt(t.login.resendIn, { n: resendIn })}</>
             ) : (
               <button
                 type="button"
                 onClick={sendCode}
                 className="cursor-pointer font-medium text-foreground underline underline-offset-2"
               >
-                Отправить ещё раз
+                {t.login.resend}
               </button>
             )}
           </p>

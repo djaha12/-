@@ -1,0 +1,41 @@
+// Смоук M10: i18n ru/ky/en — cookie-локаль, словари хрома, fallback.
+// Требует сервер :3000. Данные не мутирует — cleanup не нужен.
+const BASE = 'http://127.0.0.1:3000'
+
+let pass = 0, fail = 0
+const check = (n, ok, got) => { console.log(`${n}:`, ok ? '✓' : `✗ (${got})`); ok ? pass++ : fail++ }
+const page = async (path, locale) =>
+  (await fetch(`${BASE}${path}`, locale ? { headers: { cookie: `atelier_locale=${locale}` } } : {})).text()
+
+const main = async () => {
+  // ru по умолчанию
+  const ru = await page('/')
+  check('1. дефолт ru: «Проекты» в шапке', ru.includes('Проекты'), 'нет')
+  check('2. дефолт ru: html lang="ru"', ru.includes('<html lang="ru"'), 'нет')
+
+  // ky
+  const ky = await page('/', 'ky')
+  check('3. ky: заголовок ленты', ky.includes('Чыныгы долбоорлор'), 'нет')
+  check('4. ky: html lang="ky"', ky.includes('<html lang="ky"'), 'нет')
+  check('5. ky: футер-тэглайн', ky.includes('чынчыл репутациясы'), 'нет')
+  const kyCat = await page('/specialists', 'ky')
+  check('6. ky: каталог («Адистер», фильтр «Баары»)', kyCat.includes('Адистер') && kyCat.includes('Баары'), 'нет')
+
+  // en
+  const en = await page('/', 'en')
+  check('7. en: заголовок ленты', en.includes('Real projects. Verified specialists.'), 'нет')
+  check('8. en: html lang="en"', en.includes('<html lang="en"'), 'нет')
+  const enLogin = await page('/login', 'en')
+  check('9. en: логин («Sign in or sign up»)', enLogin.includes('Sign in or sign up'), 'нет')
+
+  // битая кука падает в ru
+  const broken = await page('/', 'de"><script>')
+  check('10. битая локаль → ru', broken.includes('Проекты') && broken.includes('<html lang="ru"'), 'нет')
+
+  // переключатель отрисован в футере
+  check('11. переключатель в футере (Кыргызча)', ru.includes('Кыргызча') && ru.includes('English'), 'нет')
+
+  console.log(`\n${pass}/${pass + fail} проверок пройдено`)
+  process.exit(fail ? 1 : 0)
+}
+main().catch((e) => { console.error(e); process.exit(1) })
