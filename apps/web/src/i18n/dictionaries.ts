@@ -323,8 +323,7 @@ const ru = {
     worksAtPlaceholder: 'Например: Ак-Үй',
     worksAtHint: 'Покажем меткой «работает в …» — репутация при этом остаётся вашей.',
     districtsTitle: 'Районы, где вы работаете',
-    districtsSub:
-      'До {n} районов Бишкека. Фокус вызывает больше доверия, чем «работаю везде», — по районам клиенты фильтруют каталог.',
+    districtsSub: 'До {n} районов Бишкека — по ним вас находят в каталоге.',
     selectedOf: 'Выбрано: {n} из {max}. Можно изменить в любой момент.',
     savedTitle: 'Сохранено',
     readyTitle: 'Профиль готов',
@@ -687,8 +686,7 @@ const ky: Dict = {
     worksAtPlaceholder: 'Мисалы: Ак-Үй',
     worksAtHint: '«… иштейт» деген белги менен көрсөтөбүз — репутация өзүңүздө калат.',
     districtsTitle: 'Сиз иштеген райондор',
-    districtsSub:
-      'Бишкектин {n}ке чейинки району. Фокус «баарында иштейм» дегенден көбүрөөк ишеним жаратат — кардарлар каталогду райондор боюнча чыпкалашат.',
+    districtsSub: 'Бишкектин {n}ке чейинки району — алар боюнча сизди каталогдон табышат.',
     selectedOf: 'Тандалды: {max} ичинен {n}. Каалаган убакта өзгөртсө болот.',
     savedTitle: 'Сакталды',
     readyTitle: 'Профиль даяр',
@@ -1048,8 +1046,7 @@ const en: Dict = {
     worksAtPlaceholder: 'For example: Ak-Üy',
     worksAtHint: 'Shown as a “works at …” label — the reputation stays yours.',
     districtsTitle: 'Districts where you work',
-    districtsSub:
-      'Up to {n} districts of Bishkek. Focus builds more trust than “I work everywhere” — clients filter the catalog by district.',
+    districtsSub: 'Up to {n} districts of Bishkek — that’s how clients find you in the catalog.',
     selectedOf: 'Selected: {n} of {max}. You can change this anytime.',
     savedTitle: 'Saved',
     readyTitle: 'Profile is ready',

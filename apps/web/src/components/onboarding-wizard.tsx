@@ -45,11 +45,14 @@ type Spec = (typeof SPECIALIZATION_CODES)[number]
 function Chip({
   active,
   disabled,
+  withCheck,
   onClick,
   children,
 }: {
   active: boolean
   disabled?: boolean
+  /** галочка в активном чипе — сигнал множественного выбора (районы vs специализация) */
+  withCheck?: boolean
   onClick: () => void
   children: React.ReactNode
 }) {
@@ -60,7 +63,7 @@ function Chip({
       aria-disabled={disabled || undefined}
       onClick={onClick}
       className={cn(
-        'inline-flex h-11 items-center rounded-full border px-4 text-sm font-medium transition-colors duration-150',
+        'inline-flex h-11 items-center gap-1.5 rounded-full border px-4 text-sm font-medium transition-colors duration-150',
         active
           ? 'cursor-pointer border-foreground bg-foreground text-background'
           : disabled
@@ -69,6 +72,7 @@ function Chip({
             : 'cursor-pointer border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground',
       )}
     >
+      {withCheck && active ? <Check className="-ml-0.5 size-3.5" aria-hidden /> : null}
       {children}
     </button>
   )
@@ -155,7 +159,7 @@ export function OnboardingWizard({
         {fmt(t.wizard.stepOf, { n: step, total: steps.length })}
       </p>
 
-      <div className="mt-6 rounded-2xl border border-border bg-surface p-5 sm:p-7">
+      <div className="mt-6 rounded-2xl border border-border bg-surface p-4 sm:p-7">
         {step === 1 ? (
           <div className="animate-fade-up space-y-5">
             <div>
@@ -183,8 +187,8 @@ export function OnboardingWizard({
                 ))}
               </div>
             </div>
-            <div>
-              <p className="mb-1.5 text-sm font-semibold">{t.onboarding.districtsTitle}</p>
+            <div className="border-t border-border/60 pt-5">
+              <p className="text-sm font-semibold">{t.onboarding.districtsTitle}</p>
               <p className="mb-2 text-[13px] leading-relaxed text-muted-foreground">
                 {fmt(t.onboarding.districtsSub, { n: MAX_EXPERTISE_DISTRICTS })}
               </p>
@@ -193,6 +197,7 @@ export function OnboardingWizard({
                   <Chip
                     key={d.slug}
                     active={selected.includes(d.slug)}
+                    withCheck
                     disabled={!selected.includes(d.slug) && selected.length >= MAX_EXPERTISE_DISTRICTS}
                     onClick={() => toggleDistrict(d.slug)}
                   >
@@ -295,7 +300,7 @@ export function OnboardingWizard({
       {step === 1 ? (
         // единственный экран ввода → сразу «Создать профиль» (без промежуточного «Далее»).
         // Действия в зоне большого пальца: на мобильном футер прилипает к низу.
-        <div className="sticky bottom-0 z-30 mt-5 flex sm:justify-end max-sm:-mx-4 max-sm:border-t max-sm:border-border max-sm:bg-background/95 max-sm:px-4 max-sm:py-3 max-sm:backdrop-blur-md">
+        <div className="mt-5 flex sm:justify-end max-sm:sticky max-sm:bottom-0 max-sm:z-30 max-sm:-mx-4 max-sm:border-t max-sm:border-border max-sm:bg-background/95 max-sm:px-4 max-sm:py-3 max-sm:backdrop-blur-md">
           <Button
             size="lg"
             disabled={!canSubmit}
