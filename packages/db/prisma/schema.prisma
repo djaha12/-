@@ -74,6 +74,9 @@ model User {
   /// Валидируется zod-схемой packages/core/notifications (ревю-backend №7).
   notificationPrefs Json?
   lastSeenAt      DateTime?
+  /// Отметка последнего отправленного дайджеста (M11): окно следующего — от неё.
+  /// Обновляется ТОЛЬКО при успешной доставке — недоставленное не теряется.
+  lastDigestAt    DateTime?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

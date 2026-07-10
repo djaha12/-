@@ -348,6 +348,38 @@ const ru = {
     storyCard: 'Визитка для сторис',
     copyPrompt: 'Скопируйте ссылку:',
   },
+  push: {
+    title: 'Push в браузере',
+    subOn: 'Включены — важное придёт, даже когда вкладка закрыта.',
+    subOff: 'Работают даже с закрытой вкладкой — на телефоне и компьютере.',
+    enable: 'Включить push',
+    disable: 'Отключить',
+    enabled: 'Включены',
+    denied:
+      'Уведомления запрещены в браузере. Разрешите их в настройках сайта — и переключатель заработает.',
+    unsupported: 'Этот браузер не поддерживает push-уведомления.',
+    error: 'Не получилось включить. Попробуйте ещё раз.',
+  },
+  settingsNotif: {
+    title: 'Настройки уведомлений',
+    subtitle:
+      'Центр уведомлений работает всегда. Подключите Telegram или push — всё важное будет приходить мгновенно.',
+    tgTitle: 'Telegram',
+    tgLinked: 'Привязан — уведомления приходят в чат с ботом.',
+    tgNotLinked: 'Не привязан. Уведомления видны только в центре на сайте.',
+    connected: 'Подключено',
+    tgHowTo: 'Откроется чат с ботом — нажмите «Start», и привязка завершится сама.',
+    tgSoon:
+      'Бот появится с запуском платформы — привязка станет доступна здесь. Пока все уведомления собираются в центре на сайте.',
+    aboutTitle: 'О чём присылаем',
+    mLeads: 'Новые заявки и открытые по брифам чаты',
+    mResponses: 'Отклики на ваши брифы',
+    mOrders: 'Статусы заказов: условия, сдача, завершение',
+    mReviews: 'Новые отзывы',
+    mModeration: 'Решения модерации по вашим кейсам',
+    noChatDup:
+      'Сообщения из чатов не дублируем поштучно — непрочитанное соберёт ежедневный дайджест.',
+  },
 } as const
 
 type DeepString<T> = { [K in keyof T]: T[K] extends string ? string : DeepString<T[K]> }
@@ -682,6 +714,38 @@ const ky: Dict = {
     storyCard: 'Сторис үчүн визитка',
     copyPrompt: 'Шилтемени көчүрүңүз:',
   },
+  push: {
+    title: 'Браузердеги push',
+    subOn: 'Күйгүзүлгөн — маанилүүсү вкладка жабык болсо да келет.',
+    subOff: 'Вкладка жабык болсо да иштейт — телефондо жана компьютерде.',
+    enable: 'Push күйгүзүү',
+    disable: 'Өчүрүү',
+    enabled: 'Күйгүзүлгөн',
+    denied:
+      'Браузерде билдирмелерге тыюу салынган. Сайттын жөндөөлөрүнөн уруксат бериңиз — которгуч иштейт.',
+    unsupported: 'Бул браузер push-билдирмелерди колдобойт.',
+    error: 'Күйгүзүү мүмкүн болбоду. Дагы бир жолу аракет кылыңыз.',
+  },
+  settingsNotif: {
+    title: 'Билдирмелердин жөндөөлөрү',
+    subtitle:
+      'Билдирмелер борбору ар дайым иштейт. Telegram же push кошуңуз — маанилүүсү заматта келет.',
+    tgTitle: 'Telegram',
+    tgLinked: 'Байланышкан — билдирмелер бот менен чатка келет.',
+    tgNotLinked: 'Байланышкан эмес. Билдирмелер сайттагы борбордо гана көрүнөт.',
+    connected: 'Кошулган',
+    tgHowTo: 'Бот менен чат ачылат — «Start» басыңыз, байланыштыруу өзү бүтөт.',
+    tgSoon:
+      'Бот платформа ишке киргенде пайда болот — байланыштыруу ушул жерде жеткиликтүү болот. Азырынча бардык билдирмелер сайттагы борбордо чогулат.',
+    aboutTitle: 'Эмне жөнүндө жөнөтөбүз',
+    mLeads: 'Жаңы табыштамалар жана бриф боюнча ачылган чаттар',
+    mResponses: 'Брифтериңизге жооптор',
+    mOrders: 'Буйрутмалардын абалы: шарттар, тапшыруу, аяктоо',
+    mReviews: 'Жаңы сын-пикирлер',
+    mModeration: 'Кейстериңиз боюнча модерация чечимдери',
+    noChatDup:
+      'Чаттагы билдирүүлөрдү бирден кайталабайбыз — окулбагандарды күнүмдүк дайджест чогултат.',
+  },
 }
 
 const en: Dict = {
@@ -1012,6 +1076,38 @@ const en: Dict = {
     copyLink: 'Copy link',
     storyCard: 'Story card',
     copyPrompt: 'Copy the link:',
+  },
+  push: {
+    title: 'Browser push',
+    subOn: 'On — important updates arrive even with the tab closed.',
+    subOff: 'Works even with the tab closed — on your phone and computer.',
+    enable: 'Enable push',
+    disable: 'Turn off',
+    enabled: 'On',
+    denied:
+      'Notifications are blocked in this browser. Allow them in the site settings and the toggle will work.',
+    unsupported: 'This browser does not support push notifications.',
+    error: 'Could not enable push. Please try again.',
+  },
+  settingsNotif: {
+    title: 'Notification settings',
+    subtitle:
+      'The notification center always works. Connect Telegram or push and important updates arrive instantly.',
+    tgTitle: 'Telegram',
+    tgLinked: 'Linked — notifications arrive in the bot chat.',
+    tgNotLinked: 'Not linked. Notifications are only visible in the center on the site.',
+    connected: 'Connected',
+    tgHowTo: 'A chat with the bot opens — press “Start” and the link completes itself.',
+    tgSoon:
+      'The bot arrives with the platform launch — linking will be available here. For now all notifications are collected in the center on the site.',
+    aboutTitle: 'What we send',
+    mLeads: 'New leads and chats opened from briefs',
+    mResponses: 'Responses to your briefs',
+    mOrders: 'Order statuses: terms, delivery, completion',
+    mReviews: 'New reviews',
+    mModeration: 'Moderation decisions on your cases',
+    noChatDup:
+      'Chat messages are not duplicated one by one — the daily digest collects what you have not read.',
   },
 }
 

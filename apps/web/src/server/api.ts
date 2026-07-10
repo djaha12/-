@@ -29,6 +29,7 @@ import { prisma, Prisma, type OrderState } from '@atelier/db'
 import { recalcDealStats, recalcReviewAggregate } from './aggregates'
 import { notifySafe } from './notify'
 import { otpGatewayEnabled, sendOtpViaGateway } from './otp-gateway'
+import { getVapidPublicKey } from './push'
 import { getProStatus, getUserPlan } from './plan'
 import { track, trackSafe } from './track'
 import {
@@ -1515,6 +1516,51 @@ const notificationsRouter = t.router({
     await prisma.user.update({ where: { id: ctx.user.id }, data: { telegramChatId: null } })
     return { ok: true }
   }),
+
+  /** Публичный VAPID-ключ (не секрет); null = push-канал не настроен */
+  pushKey: publicProcedure.query(() => ({ key: getVapidPublicKey() })),
+
+  /**
+   * Подписка Web Push (M11). Upsert по endpoint: подписка принадлежит браузеру,
+   * а браузер — тому, кто в нём залогинен; перелогин переприсваивает подписку.
+   */
+  subscribePush: authedProcedure
+    .input(
+      z.object({
+        endpoint: z
+          .string()
+          .max(1000)
+          .url()
+          .refine((v) => v.startsWith('https://'), 'Только https'),
+        p256dh: z.string().min(1).max(200),
+        auth: z.string().min(1).max(200),
+        userAgent: z.string().max(300).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await prisma.pushSubscription.upsert({
+        where: { endpoint: input.endpoint },
+        create: {
+          userId: ctx.user.id,
+          endpoint: input.endpoint,
+          p256dh: input.p256dh,
+          auth: input.auth,
+          userAgent: input.userAgent ?? null,
+        },
+        update: { userId: ctx.user.id, p256dh: input.p256dh, auth: input.auth },
+      })
+      return { ok: true }
+    }),
+
+  /** Отписка: только свою подписку (endpoint+userId) */
+  unsubscribePush: authedProcedure
+    .input(z.object({ endpoint: z.string().max(1000) }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.pushSubscription.deleteMany({
+        where: { endpoint: input.endpoint, userId: ctx.user.id },
+      })
+      return { ok: true }
+    }),
 })
 
 const SPECIALIZATIONS = [

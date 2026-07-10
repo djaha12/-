@@ -1,13 +1,14 @@
 import 'server-only'
 import { after } from 'next/server'
 import { prisma, type Prisma } from '@atelier/db'
+import { sendPushToUserSafe } from './push'
 import { sendTelegramSafe } from './telegram'
 
 /**
- * Уведомления M6. In-app центр (Notification) — источник истины; Telegram —
- * канал доставки (если привязан и настроен TELEGRAM_BOT_TOKEN). Доставка
- * fire-and-safe: сбой канала никогда не роняет доменный поток.
- * Сообщения чата НЕ уведомляем поштучно (шум); дайджест — вместе с PWA-push.
+ * Уведомления M6 (+web-push M11). In-app центр (Notification) — источник
+ * истины; Telegram и Web Push — каналы доставки (каждый включается своим env).
+ * Доставка fire-and-safe: сбой канала никогда не роняет доменный поток.
+ * Сообщения чата НЕ уведомляем поштучно (шум) — их собирает дайджест (M11).
  */
 
 export type NotificationType =
@@ -52,8 +53,8 @@ export function createNotification(
   })
 }
 
-/** Уведомить: in-app запись сразу, доставка в Telegram — после ответа (after()),
- *  чтобы лежащий Telegram не добавлял латентность мутациям. Не бросает. */
+/** Уведомить: in-app запись сразу, доставка в Telegram и push — после ответа
+ *  (after()), чтобы лежащие каналы не добавляли латентность мутациям. Не бросает. */
 export async function notifySafe(
   userId: string,
   type: NotificationType,
@@ -67,19 +68,31 @@ export async function notifySafe(
           where: { id: userId },
           select: { telegramChatId: true },
         })
-        if (!user?.telegramChatId) return
-        const text = input.body
-          ? `<b>${escapeHtml(input.title)}</b>\n${escapeHtml(input.body)}`
-          : `<b>${escapeHtml(input.title)}</b>`
-        const ok = await sendTelegramSafe(user.telegramChatId, text, input.url)
-        if (ok) {
-          await prisma.notification.update({
-            where: { id: n.id },
-            data: { telegramSentAt: new Date() },
-          })
+        if (user?.telegramChatId) {
+          const text = input.body
+            ? `<b>${escapeHtml(input.title)}</b>\n${escapeHtml(input.body)}`
+            : `<b>${escapeHtml(input.title)}</b>`
+          const ok = await sendTelegramSafe(user.telegramChatId, text, input.url)
+          if (ok) {
+            await prisma.notification.update({
+              where: { id: n.id },
+              data: { telegramSentAt: new Date() },
+            })
+          }
         }
       } catch (e) {
         console.error('[notify:telegram]', type, e)
+      }
+      try {
+        const ok = await sendPushToUserSafe(userId, input)
+        if (ok) {
+          await prisma.notification.update({
+            where: { id: n.id },
+            data: { pushSentAt: new Date() },
+          })
+        }
+      } catch (e) {
+        console.error('[notify:push]', type, e)
       }
     })
   } catch (e) {

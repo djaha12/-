@@ -43,14 +43,18 @@
    (промоутни реального пользователя в роль `MODERATOR`).
 7. **Домен.** Settings → Domains → добавь домен, обнови DNS. Значение = `SITE_URL`. После смены —
    Redeploy. Проверь `/sitemap.xml`, `/robots.txt`, og:image — реальный домен, не 127.0.0.1.
-8. **Cron.** `vercel.json` уже в репо. Убедись, что `CRON_SECRET` задан в Production **до** деплоя.
-   На плане Hobby cron только раз/сутки (текущее `0 3 * * *` — ок; hourly требует Pro).
+8. **Cron.** `vercel.json` уже в репо (два: авто-подтверждение 3:00 UTC и дайджест 5:00 UTC —
+   лимит Hobby ровно 2 daily-крона). Убедись, что `CRON_SECRET` задан в Production **до** деплоя.
 9. **Telegram (опционально).** Задай `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
    `NEXT_PUBLIC_TELEGRAM_BOT`; в `setWebhook` передай `secret_token = TELEGRAM_WEBHOOK_SECRET`.
    Без токена уведомления штатно деградируют в in-app.
-10. **Проверка e2e.** После деплоя: каталог не пустой → вход тест-номером → создание кейса с фото
-    (Blob отдаёт картинку, `next/image` рендерит) → ручной вызов `/api/cron/auto-confirm` с Bearer →
-    OG-карточка и sitemap на реальном домене.
+10. **Web Push (опционально, M11).** Один раз: `npx web-push generate-vapid-keys` → задай
+    `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (и по желанию `VAPID_SUBJECT`, `mailto:`-адрес).
+    Без ключей push-секция в настройках скрыта, канал молчит — деградация как у Telegram.
+11. **Проверка e2e.** После деплоя: каталог не пустой → вход тест-номером → создание кейса с фото
+    (Blob отдаёт картинку, `next/image` рендерит) → ручной вызов `/api/cron/auto-confirm` и
+    `/api/cron/digest` с Bearer → OG-карточка и sitemap на реальном домене → в
+    `/settings/notifications` включается push (нужен HTTPS-домен, не превью-пароль).
 
 ## Матрица переменных окружения
 
@@ -67,6 +71,9 @@
 | `TELEGRAM_BOT_TOKEN` | нет | Production | токен BotFather (без него — in-app) |
 | `TELEGRAM_WEBHOOK_SECRET` | нет | Production | случайное; то же в `setWebhook` |
 | `NEXT_PUBLIC_TELEGRAM_BOT` | нет | Production (билд) | username бота для deep-link |
+| `VAPID_PUBLIC_KEY` | нет | Prod+Preview | `npx web-push generate-vapid-keys` (без пары — push скрыт) |
+| `VAPID_PRIVATE_KEY` | нет | Prod+Preview | вторая половина пары |
+| `VAPID_SUBJECT` | нет | Prod+Preview | `mailto:support@…` (дефолт зашит) |
 | `NODE_ENV` | — | — | **не задавать** (Vercel ставит сам) |
 
 ## Решения, которые нужны от тебя

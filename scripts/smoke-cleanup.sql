@@ -41,6 +41,8 @@ DELETE FROM "ReviewAggregate" WHERE "specialistProfileId" IN (SELECT id FROM "Sp
 DELETE FROM "SpecialistDistrict" WHERE "specialistProfileId" IN (SELECT id FROM "SpecialistProfile" WHERE "userId" IN (SELECT id FROM smoke_users));
 DELETE FROM "SpecialistProfile" WHERE "userId" IN (SELECT id FROM smoke_users);
 DELETE FROM "Session" WHERE "userId" IN (SELECT id FROM smoke_users);
+-- web-push (M11)
+DELETE FROM "PushSubscription" WHERE "userId" IN (SELECT id FROM smoke_users);
 -- аналитика (M8): события тест-юзеров + гостевые маркеры смоука (actorId у гостя NULL)
 DELETE FROM "AnalyticsOutbox" WHERE "actorId" IN (SELECT id FROM smoke_users)
    OR props->>'slug' LIKE 'guest-%' OR props->>'slug' LIKE 'burst-%';
