@@ -35,8 +35,9 @@ publicProcedure, вайтлист surface/method/slug) → share-rate; атри�
 в sessionStorage (RefCapture в layout) → source на `lead_created` (normalizeLeadSource в core:
 direct/share/other); расшаренная ссылка несёт ?ref=share. Закрывает «слепоту петли» из
 docs/06 §13.1 (share-rate и «визитка→заявка» раньше не мерились).
-**M6.2**: онбординг специалиста — /onboarding (3 шага: имя+специализация, районы ≤5 из core,
-Telegram+первый кейс), profiles.setup идемпотентен (редактирование), контакт-детект на
+**M6.2**: онбординг специалиста — /onboarding (2 шага: единый экран имя+специализация+районы≤5
+из core+опц. агентство → «Готово»; сжат с 3 шагов ради supply-воронки, районы с галочкой мультиселекта),
+profiles.setup идемпотентен (редактирование), контакт-детект на
 displayName/worksAt при записи, промоушен роли CLIENT→SPECIALIST; входы: шапка/футер//new без
 профиля; /login?next= (валидация URL-парсером); владельцу профиля — «Настроить профиль».
 **M10** (i18n-фундамент): ru/ky/en — typed-словари (ru источник типа), локаль в cookie БЕЗ
