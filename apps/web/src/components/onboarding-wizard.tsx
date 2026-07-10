@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRight, Check, ImagePlus, Send } from 'lucide-react'
+import { ArrowRight, Check, ImagePlus, Send } from 'lucide-react'
 import { MAX_EXPERTISE_DISTRICTS } from '@atelier/core'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -82,7 +82,8 @@ export function OnboardingWizard({
   districts: Array<{ slug: string; name: string }>
 }) {
   const { t } = useI18n()
-  const steps = [t.onboarding.stepAbout, t.onboarding.stepDistricts, t.onboarding.stepDone]
+  // один экран ввода вместо двух: профиль + районы вместе (меньше шагов)
+  const steps = [t.onboarding.profileTitle, t.onboarding.stepDone]
   const router = useRouter()
   const [step, setStep] = React.useState(1)
   const [name, setName] = React.useState(prefill.displayName)
@@ -93,7 +94,7 @@ export function OnboardingWizard({
   const setup = trpc.profiles.setup.useMutation({
     onSuccess: () => {
       router.refresh()
-      setStep(3)
+      setStep(2)
     },
   })
 
@@ -106,7 +107,7 @@ export function OnboardingWizard({
           : prev,
     )
 
-  const canNext = step === 1 ? name.trim().length >= 2 : true
+  const canSubmit = name.trim().length >= 2
   const submit = () =>
     setup.mutate({
       displayName: name.trim(),
@@ -151,7 +152,7 @@ export function OnboardingWizard({
         })}
       </ol>
       <p className="mt-2 text-sm font-medium sm:hidden">
-        {fmt(t.wizard.stepOf, { n: step, total: 3 })}
+        {fmt(t.wizard.stepOf, { n: step, total: steps.length })}
       </p>
 
       <div className="mt-6 rounded-2xl border border-border bg-surface p-5 sm:p-7">
@@ -182,6 +183,34 @@ export function OnboardingWizard({
                 ))}
               </div>
             </div>
+            <div>
+              <p className="mb-1.5 text-sm font-semibold">{t.onboarding.districtsTitle}</p>
+              <p className="mb-2 text-[13px] leading-relaxed text-muted-foreground">
+                {fmt(t.onboarding.districtsSub, { n: MAX_EXPERTISE_DISTRICTS })}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {districts.map((d) => (
+                  <Chip
+                    key={d.slug}
+                    active={selected.includes(d.slug)}
+                    disabled={!selected.includes(d.slug) && selected.length >= MAX_EXPERTISE_DISTRICTS}
+                    onClick={() => toggleDistrict(d.slug)}
+                  >
+                    {d.name}
+                  </Chip>
+                ))}
+              </div>
+              <p
+                className={cn(
+                  'mt-2 text-[13px]',
+                  selected.length >= MAX_EXPERTISE_DISTRICTS
+                    ? 'font-medium text-foreground'
+                    : 'text-muted-foreground',
+                )}
+              >
+                {fmt(t.onboarding.selectedOf, { n: selected.length, max: MAX_EXPERTISE_DISTRICTS })}
+              </p>
+            </div>
             <label className="block">
               <span className="mb-1.5 block text-sm font-semibold">
                 {t.onboarding.worksAtLabel}{' '}
@@ -200,43 +229,6 @@ export function OnboardingWizard({
         ) : null}
 
         {step === 2 ? (
-          <div className="animate-fade-up space-y-5">
-            <div>
-              <h2 className="font-display text-xl font-semibold tracking-tight">
-                {t.onboarding.districtsTitle}
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {fmt(t.onboarding.districtsSub, { n: MAX_EXPERTISE_DISTRICTS })}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {districts.map((d) => (
-                <Chip
-                  key={d.slug}
-                  active={selected.includes(d.slug)}
-                  disabled={
-                    !selected.includes(d.slug) && selected.length >= MAX_EXPERTISE_DISTRICTS
-                  }
-                  onClick={() => toggleDistrict(d.slug)}
-                >
-                  {d.name}
-                </Chip>
-              ))}
-            </div>
-            <p
-              className={cn(
-                'text-[13px]',
-                selected.length >= MAX_EXPERTISE_DISTRICTS
-                  ? 'font-medium text-foreground'
-                  : 'text-muted-foreground',
-              )}
-            >
-              {fmt(t.onboarding.selectedOf, { n: selected.length, max: MAX_EXPERTISE_DISTRICTS })}
-            </p>
-          </div>
-        ) : null}
-
-        {step === 3 ? (
           <div className="animate-fade-up text-center">
             <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-success-soft text-success">
               <Check className="size-7" aria-hidden />
@@ -300,31 +292,20 @@ export function OnboardingWizard({
         </p>
       ) : null}
 
-      {step < 3 ? (
-        // действия — в зоне большого пальца: на мобильном футер прилипает к низу
-        // (тот же паттерн, что в мастере кейса)
-        <div className="sticky bottom-0 z-30 mt-5 max-sm:-mx-4 max-sm:border-t max-sm:border-border max-sm:bg-background/95 max-sm:px-4 max-sm:py-3 max-sm:backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            {step > 1 ? (
-              <Button variant="ghost" onClick={() => setStep(1)} className="shrink-0">
-                <ArrowLeft aria-hidden />
-                {t.wizard.back}
-              </Button>
-            ) : null}
-            <div className={cn('min-w-0 flex-1 sm:flex-none', step === 1 && 'sm:ml-auto')}>
-              {step === 1 ? (
-                <Button size="lg" disabled={!canNext} onClick={() => setStep(2)} className="w-full">
-                  {t.onboarding.nextBtn}
-                  <ArrowRight aria-hidden />
-                </Button>
-              ) : (
-                <Button size="lg" loading={setup.isPending} onClick={submit} className="w-full">
-                  {prefill.isEdit ? t.onboarding.save : t.onboarding.createProfile}
-                  <ArrowRight aria-hidden />
-                </Button>
-              )}
-            </div>
-          </div>
+      {step === 1 ? (
+        // единственный экран ввода → сразу «Создать профиль» (без промежуточного «Далее»).
+        // Действия в зоне большого пальца: на мобильном футер прилипает к низу.
+        <div className="sticky bottom-0 z-30 mt-5 flex sm:justify-end max-sm:-mx-4 max-sm:border-t max-sm:border-border max-sm:bg-background/95 max-sm:px-4 max-sm:py-3 max-sm:backdrop-blur-md">
+          <Button
+            size="lg"
+            disabled={!canSubmit}
+            loading={setup.isPending}
+            onClick={submit}
+            className="w-full sm:w-auto"
+          >
+            {prefill.isEdit ? t.onboarding.save : t.onboarding.createProfile}
+            <ArrowRight aria-hidden />
+          </Button>
         </div>
       ) : null}
     </div>
