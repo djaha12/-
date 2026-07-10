@@ -50,20 +50,23 @@ export function PushToggle({ vapidKey }: { vapidKey: string }) {
   const enable = async () => {
     setBusy(true)
     setFailed(false)
+    let browserSub: PushSubscription | null = null
     try {
-      const reg = await navigator.serviceWorker.register('/sw.js')
+      await navigator.serviceWorker.register('/sw.js')
+      // без ready subscribe() в Firefox падает InvalidStateError (SW ещё не активен)
+      const reg = await navigator.serviceWorker.ready
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') {
         if (permission === 'denied') setBlocked('denied')
         return
       }
-      const sub =
+      browserSub =
         (await reg.pushManager.getSubscription()) ??
         (await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(vapidKey),
         }))
-      const json = sub.toJSON()
+      const json = browserSub.toJSON()
       if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) throw new Error('bad sub')
       await subscribe.mutateAsync({
         endpoint: json.endpoint,
@@ -73,6 +76,9 @@ export function PushToggle({ vapidKey }: { vapidKey: string }) {
       })
       setSubscribed(true)
     } catch {
+      // сервер не узнал о подписке — откатываем браузерную, иначе после
+      // перезагрузки тумблер покажет «включено» при молчащем канале
+      await browserSub?.unsubscribe().catch(() => {})
       setFailed(true)
     } finally {
       setBusy(false)

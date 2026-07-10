@@ -10,12 +10,14 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('push', (event) => {
-  if (!event.data) return
+  // userVisibleOnly обязывает что-то показать даже на пустой payload
   let data = {}
-  try {
-    data = event.data.json()
-  } catch {
-    data = { title: event.data.text() }
+  if (event.data) {
+    try {
+      data = event.data.json()
+    } catch {
+      data = { title: event.data.text() }
+    }
   }
   const title = data.title || 'Ателье'
   event.waitUntil(
@@ -35,9 +37,9 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {
         if ('focus' in client) {
-          client.focus()
-          if ('navigate' in client && url) client.navigate(url)
-          return
+          return client
+            .focus()
+            .then((c) => (url && 'navigate' in c ? c.navigate(url) : c))
         }
       }
       return self.clients.openWindow(url || '/')

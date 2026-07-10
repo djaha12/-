@@ -350,7 +350,6 @@ const ru = {
   },
   push: {
     title: 'Push в браузере',
-    subOn: 'Включены — важное придёт, даже когда вкладка закрыта.',
     subOff: 'Работают даже с закрытой вкладкой — на телефоне и компьютере.',
     enable: 'Включить push',
     disable: 'Отключить',
@@ -716,7 +715,6 @@ const ky: Dict = {
   },
   push: {
     title: 'Браузердеги push',
-    subOn: 'Күйгүзүлгөн — маанилүүсү вкладка жабык болсо да келет.',
     subOff: 'Вкладка жабык болсо да иштейт — телефондо жана компьютерде.',
     enable: 'Push күйгүзүү',
     disable: 'Өчүрүү',
@@ -1079,7 +1077,6 @@ const en: Dict = {
   },
   push: {
     title: 'Browser push',
-    subOn: 'On — important updates arrive even with the tab closed.',
     subOff: 'Works even with the tab closed — on your phone and computer.',
     enable: 'Enable push',
     disable: 'Turn off',

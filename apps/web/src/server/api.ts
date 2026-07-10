@@ -29,7 +29,7 @@ import { prisma, Prisma, type OrderState } from '@atelier/db'
 import { recalcDealStats, recalcReviewAggregate } from './aggregates'
 import { notifySafe } from './notify'
 import { otpGatewayEnabled, sendOtpViaGateway } from './otp-gateway'
-import { getVapidPublicKey } from './push'
+import { getVapidPublicKey, MAX_PUSH_SUBSCRIPTIONS } from './push'
 import { getProStatus, getUserPlan } from './plan'
 import { track, trackSafe } from './track'
 import {
@@ -1517,7 +1517,9 @@ const notificationsRouter = t.router({
     return { ok: true }
   }),
 
-  /** Публичный VAPID-ключ (не секрет); null = push-канал не настроен */
+  /** Публичный VAPID-ключ (не секрет); null = push-канал не настроен.
+   *  Настройки получают ключ пропом с сервера; этот эндпоинт — для подписки
+   *  с других поверхностей (PWA-инсталл, пост-онбординг nudge) без RSC-пропа. */
   pushKey: publicProcedure.query(() => ({ key: getVapidPublicKey() })),
 
   /**
@@ -1547,8 +1549,25 @@ const notificationsRouter = t.router({
           auth: input.auth,
           userAgent: input.userAgent ?? null,
         },
-        update: { userId: ctx.user.id, p256dh: input.p256dh, auth: input.auth },
+        update: {
+          userId: ctx.user.id,
+          p256dh: input.p256dh,
+          auth: input.auth,
+          userAgent: input.userAgent ?? null,
+        },
       })
+      // кап устройств: старейшие сверх лимита выбывают (защита бюджета отправки)
+      const extra = await prisma.pushSubscription.findMany({
+        where: { userId: ctx.user.id },
+        orderBy: { createdAt: 'desc' },
+        skip: MAX_PUSH_SUBSCRIPTIONS,
+        select: { id: true },
+      })
+      if (extra.length > 0) {
+        await prisma.pushSubscription.deleteMany({
+          where: { id: { in: extra.map((e) => e.id) } },
+        })
+      }
       return { ok: true }
     }),
 

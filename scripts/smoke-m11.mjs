@@ -80,29 +80,38 @@ const main = async () => {
   const noAuth = await digest()
   check('8. дайджест без Bearer → 401', noAuth.status === 401, noAuth.status)
 
-  // дайджест: unread-уведомление у A с push-каналом (fake endpoint — доставка упадёт)
+  // дайджест: unread-уведомление у A с push-каналом (fake endpoint — доставка упадёт).
+  // Все чеки — относительно базлайна: дев-БД может держать посторонних кандидатов.
   await a('notifications.subscribePush', { endpoint: 'https://push.example/smoke-a', p256dh: 'pk', auth: 'au' })
+  const d0 = await (await digest('smoke-cron')).json()
   psql(`INSERT INTO \\"Notification\\" (id, \\"userId\\", type, title, \\"createdAt\\", \\"updatedAt\\") VALUES ('smoke-m11-n1', '${A}', 'lead_new', 'Смоук: заявка', now(), now())`)
   const d1 = await (await digest('smoke-cron')).json()
   const lastDigest = psql(`SELECT \\"lastDigestAt\\" FROM \\"User\\" WHERE id='${A}'`)
-  check('9. кандидат посчитан, недоставленное не отмечено', d1.candidates >= 1 && lastDigest === '', `${JSON.stringify(d1)} last=${lastDigest}`)
+  check('9. кандидат посчитан, недоставленное не отмечено', d1.candidates === d0.candidates + 1 && lastDigest === '', `${JSON.stringify(d1)} base=${d0.candidates} last=${lastDigest}`)
 
   // после прочтения уведомления кандидатов из уведомлений нет
   psql(`UPDATE \\"Notification\\" SET \\"readAt\\"=now() WHERE id='smoke-m11-n1'`)
   const d2 = await (await digest('smoke-cron')).json()
-  check('10. прочитанное не будит дайджест', d2.candidates === 0, JSON.stringify(d2))
+  check('10. прочитанное не будит дайджест', d2.candidates === d0.candidates, `${JSON.stringify(d2)} base=${d0.candidates}`)
 
   // непрочитанное сообщение чата тоже собирается
   psql(`INSERT INTO \\"ChatThread\\" (id, \\"createdAt\\", \\"updatedAt\\") VALUES ('smoke-m11-t1', now(), now())`)
   psql(`INSERT INTO \\"ChatParticipant\\" (id, \\"threadId\\", \\"userId\\", \\"createdAt\\", \\"updatedAt\\") VALUES ('smoke-m11-p1', 'smoke-m11-t1', '${A}', now(), now()), ('smoke-m11-p2', 'smoke-m11-t1', '${B}', now(), now())`)
   psql(`INSERT INTO \\"Message\\" (id, \\"threadId\\", \\"senderId\\", kind, text, \\"createdAt\\", \\"updatedAt\\") VALUES ('smoke-m11-m1', 'smoke-m11-t1', '${B}', 'TEXT', 'смоук', now(), now())`)
   const d3 = await (await digest('smoke-cron')).json()
-  check('11. непрочитанное сообщение чата будит дайджест', d3.candidates >= 1, JSON.stringify(d3))
+  check('11. непрочитанное сообщение чата будит дайджест', d3.candidates === d0.candidates + 1, `${JSON.stringify(d3)} base=${d0.candidates}`)
 
   // прочитал тред → тишина
   psql(`UPDATE \\"ChatParticipant\\" SET \\"lastReadAt\\"=now() WHERE id='smoke-m11-p1'`)
   const d4 = await (await digest('smoke-cron')).json()
-  check('12. прочитанный чат — тишина', d4.candidates === 0, JSON.stringify(d4))
+  check('12. прочитанный чат — тишина', d4.candidates === d0.candidates, `${JSON.stringify(d4)} base=${d0.candidates}`)
+
+  // кап подписок: сверх лимита старейшие выбывают
+  for (let i = 0; i < 12; i++) {
+    await a('notifications.subscribePush', { endpoint: `https://push.example/smoke-cap-${i}`, p256dh: 'pk', auth: 'au' })
+  }
+  const subCount = Number(psql(`SELECT count(*) FROM \\"PushSubscription\\" WHERE \\"userId\\"='${A}'`))
+  check('13. кап подписок на пользователя (10)', subCount === 10, subCount)
 
   // артефакты смоука вне cleanup-паттернов — подчистим сразу
   psql(`DELETE FROM \\"Message\\" WHERE id='smoke-m11-m1'`)
