@@ -349,7 +349,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
                         className="absolute inset-0 flex cursor-pointer items-center justify-center gap-2 bg-black/45 font-semibold text-white backdrop-blur-[2px] transition-colors hover:bg-black/55"
                       >
                         <Images className="size-5" aria-hidden />
-                        Все {gallery.length} фото
+                        {fmt(t.casePage.allPhotos, { n: gallery.length })}
                       </button>
                     ) : null}
                   </div>
@@ -359,7 +359,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
           ) : null}
         </section>
 
-        <section aria-label="Параметры" className="mt-8">
+        <section aria-label={t.casePage.paramsAria} className="mt-8">
           <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border md:grid-cols-4">
             {paramItems.map((p) => (
               <div key={p.dt} className="bg-surface px-4 py-3.5">
@@ -446,7 +446,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
           <p className="font-display text-lg font-semibold tracking-tight">{cta.title}</p>
           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{cta.text}</p>
           <p className="mt-2 text-xs text-muted-foreground">
-            Телефон откроется после отклика специалиста
+            {t.casePage.phoneAfterReply}
           </p>
         </section>
 

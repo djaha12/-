@@ -98,7 +98,7 @@ export function BeforeAfterSlider({
         <button
           type="button"
           role="slider"
-          aria-label="Сравнить до и после"
+          aria-label={t.slider.compareAria}
           aria-valuemin={2}
           aria-valuemax={98}
           aria-valuenow={Math.round(pos)}

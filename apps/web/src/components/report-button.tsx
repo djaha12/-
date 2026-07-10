@@ -7,16 +7,9 @@ import { useI18n } from '@/i18n/client'
 import { trpc } from '@/lib/trpc'
 import { cn } from '@/lib/utils'
 
-const REASONS = [
-  { key: 'stolen', label: 'Украденный контент' },
-  { key: 'contacts', label: 'Контакты в описании' },
-  { key: 'fake', label: 'Недостоверно' },
-  { key: 'spam', label: 'Спам' },
-  { key: 'offensive', label: 'Оскорбительно' },
-  { key: 'other', label: 'Другое' },
-] as const
+const REASON_KEYS = ['stolen', 'contacts', 'fake', 'spam', 'offensive', 'other'] as const
 
-type ReasonKey = (typeof REASONS)[number]['key']
+type ReasonKey = (typeof REASON_KEYS)[number]
 
 /** Жалоба на кейс — доступна и гостям (анонимный cookie на сервере) */
 export function ReportButton({ caseSlug }: { caseSlug: string }) {
@@ -29,7 +22,7 @@ export function ReportButton({ caseSlug }: { caseSlug: string }) {
   if (report.isSuccess) {
     return (
       <p className="py-2 text-center text-[13px] text-muted-foreground">
-        Спасибо, жалоба у модераторов — обычно разбираем в течение дня.
+        {t.report.thanks}
       </p>
     )
   }
@@ -58,22 +51,22 @@ export function ReportButton({ caseSlug }: { caseSlug: string }) {
         if (reason) report.mutate({ caseSlug, reason, comment: comment.trim() || undefined })
       }}
     >
-      <p className="text-sm font-semibold">Что не так с этим кейсом?</p>
+      <p className="text-sm font-semibold">{t.report.title}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {REASONS.map((r) => (
+        {REASON_KEYS.map((key) => (
           <button
-            key={r.key}
+            key={key}
             type="button"
-            onClick={() => setReason(r.key)}
-            aria-pressed={reason === r.key}
+            onClick={() => setReason(key)}
+            aria-pressed={reason === key}
             className={cn(
               'h-11 rounded-full border px-4 text-sm transition-colors sm:h-9',
-              reason === r.key
+              reason === key
                 ? 'border-transparent bg-accent-soft font-medium text-accent-soft-foreground'
                 : 'border-border text-muted-foreground hover:border-border-strong hover:text-foreground',
             )}
           >
-            {r.label}
+            {t.report[key]}
           </button>
         ))}
       </div>
@@ -81,7 +74,7 @@ export function ReportButton({ caseSlug }: { caseSlug: string }) {
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         rows={2}
-        placeholder="Пара слов для модератора (не обязательно)"
+        placeholder={t.report.placeholder}
         className="mt-3 w-full resize-y rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm leading-relaxed placeholder:text-faint-foreground focus:border-border-strong focus:outline-none"
       />
       {report.isError ? (
@@ -89,10 +82,10 @@ export function ReportButton({ caseSlug }: { caseSlug: string }) {
       ) : null}
       <div className="mt-3 flex items-center gap-2">
         <Button type="submit" variant="soft" size="sm" className="h-11 sm:h-9" loading={report.isPending} disabled={!reason}>
-          Отправить жалобу
+          {t.report.submit}
         </Button>
         <Button type="button" variant="ghost" size="sm" className="h-11 sm:h-9" onClick={() => setOpen(false)}>
-          Отмена
+          {t.report.cancel}
         </Button>
       </div>
     </form>
