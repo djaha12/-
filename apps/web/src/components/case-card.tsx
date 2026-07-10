@@ -1,24 +1,14 @@
+'use client'
+
 import Image from 'next/image'
 import Link from 'next/link'
 import { BadgeCheck, Bookmark } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { SaveButton } from '@/components/save-button'
 import type { CaseItem, DealInfo } from '@/mock/data'
+import { useI18n } from '@/i18n/client'
+import { dealOutcomeLabel, dealTypeLabel } from '@/lib/deal-labels'
 import { cn, formatBudgetRange, formatDealPrice } from '@/lib/utils'
-
-export const DEAL_TYPE_LABEL: Record<DealInfo['type'], string> = {
-  sale: 'Продажа',
-  rentOut: 'Аренда',
-  buyAssist: 'Подбор',
-}
-
-/** «Продано за 18 дней» — главный сигнал доверия на карточке сделки */
-export function dealOutcomeLabel(deal: DealInfo): string | null {
-  if (deal.type === 'sale' && deal.daysOnMarket) return `Продано за ${deal.daysOnMarket} дн.`
-  if (deal.type === 'rentOut' && deal.daysOnMarket) return `Сдано за ${deal.daysOnMarket} дн.`
-  if (deal.type === 'buyAssist') return 'Подбор выполнен'
-  return null
-}
 
 interface CaseCardProps {
   item: CaseItem
@@ -30,6 +20,8 @@ interface CaseCardProps {
 
 export function CaseCard({ item, hideAuthor = false, frame = 'natural' }: CaseCardProps) {
   const image = item.image
+  const { t } = useI18n()
+  const money = { som: t.caseCard.som, somMonthly: t.caseCard.somMonthly, perMonthShort: t.caseCard.perMonthShort }
 
   return (
     <article className={cn('group', frame === 'natural' && 'mb-5 break-inside-avoid')}>
@@ -73,7 +65,7 @@ export function CaseCard({ item, hideAuthor = false, frame = 'natural' }: CaseCa
         {item.deal ? (
           // итог сделки виден всегда — это и есть контент карточки риелтора;
           // подтверждённая клиентом — зелёная пилюля, самопубликация — нейтральная
-          dealOutcomeLabel(item.deal) ? (
+          dealOutcomeLabel(t, item.deal) ? (
             <span
               className={cn(
                 'pointer-events-none absolute bottom-3 left-3 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-white ring-1 ring-white/15 backdrop-blur-sm',
@@ -82,9 +74,9 @@ export function CaseCard({ item, hideAuthor = false, frame = 'natural' }: CaseCa
               )}
             >
               {item.deal.confirmed ? <BadgeCheck className="size-4" aria-hidden /> : null}
-              {dealOutcomeLabel(item.deal)}
+              {dealOutcomeLabel(t, item.deal)}
               {item.deal.confirmed ? (
-                <span className="sr-only">, подтверждена клиентом</span>
+                <span className="sr-only">{t.caseCard.confirmedSr}</span>
               ) : null}
             </span>
           ) : null
@@ -107,28 +99,28 @@ export function CaseCard({ item, hideAuthor = false, frame = 'natural' }: CaseCa
             {item.deal.price ? (
               <>
                 <span className="font-semibold">
-                  {formatDealPrice(item.deal.price, { monthly: item.deal.type === 'rentOut' }).som}
+                  {formatDealPrice(item.deal.price, { monthly: item.deal.type === 'rentOut', labels: money }).som}
                 </span>
                 <span className="text-muted-foreground max-sm:hidden">
                   {' '}
-                  {formatDealPrice(item.deal.price, { monthly: item.deal.type === 'rentOut' }).usd}
+                  {formatDealPrice(item.deal.price, { monthly: item.deal.type === 'rentOut', labels: money }).usd}
                 </span>
-                <span className="text-muted-foreground"> · {DEAL_TYPE_LABEL[item.deal.type]}</span>
+                <span className="text-muted-foreground"> · {dealTypeLabel(t, item.deal.type)}</span>
               </>
             ) : item.deal.priceFrom && item.deal.priceTo ? (
               // видимость RANGE: публикуется только вилка
               <>
                 <span className="font-semibold">
-                  {formatBudgetRange(item.deal.priceFrom, item.deal.priceTo).som}
+                  {formatBudgetRange(item.deal.priceFrom, item.deal.priceTo, { som: t.caseCard.som }).som}
                 </span>
-                <span className="text-muted-foreground"> · {DEAL_TYPE_LABEL[item.deal.type]}</span>
+                <span className="text-muted-foreground"> · {dealTypeLabel(t, item.deal.type)}</span>
               </>
             ) : item.deal.type === 'buyAssist' ? (
               // buyAssist: бейдж «Подбор выполнен» уже назвал тип — без повторов
-              <span className="text-muted-foreground">Под задачу клиента</span>
+              <span className="text-muted-foreground">{t.caseCard.forClientTask}</span>
             ) : (
               <span className="text-muted-foreground">
-                Цена не публикуется · {DEAL_TYPE_LABEL[item.deal.type]}
+                {t.caseCard.priceHidden} · {dealTypeLabel(t, item.deal.type)}
               </span>
             )}
           </p>

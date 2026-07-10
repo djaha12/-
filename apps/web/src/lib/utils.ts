@@ -11,7 +11,11 @@ export function formatSom(value: number): string {
   return `${new Intl.NumberFormat('ru-RU').format(value)} сом`
 }
 
-export function formatBudgetRange(fromSom: number, toSom: number): {
+export function formatBudgetRange(
+  fromSom: number,
+  toSom: number,
+  labels?: { som?: string },
+): {
   som: string
   usd: string
 } {
@@ -19,12 +23,15 @@ export function formatBudgetRange(fromSom: number, toSom: number): {
   const usdFrom = Math.round(fromSom / SOM_PER_USD / 100) * 100
   const usdTo = Math.round(toSom / SOM_PER_USD / 100) * 100
   return {
-    som: `${fmt.format(fromSom)}–${fmt.format(toSom)} сом`,
+    som: `${fmt.format(fromSom)}–${fmt.format(toSom)} ${labels?.som ?? 'сом'}`,
     usd: `≈ $${fmt.format(usdFrom)}–${fmt.format(usdTo)}`,
   }
 }
 
-export function formatDealPrice(price: number, opts?: { monthly?: boolean }): {
+export function formatDealPrice(
+  price: number,
+  opts?: { monthly?: boolean; labels?: { som?: string; somMonthly?: string; perMonthShort?: string } },
+): {
   som: string
   usd: string
 } {
@@ -32,10 +39,12 @@ export function formatDealPrice(price: number, opts?: { monthly?: boolean }): {
   // месячные ставки округляем точнее: на аренде сотни дают до ±10% ошибки
   const step = opts?.monthly ? 10 : 100
   const usd = Math.round(price / SOM_PER_USD / step) * step
-  const suffix = opts?.monthly ? ' сом/мес' : ' сом'
+  const suffix = opts?.monthly
+    ? ` ${opts?.labels?.somMonthly ?? 'сом/мес'}`
+    : ` ${opts?.labels?.som ?? 'сом'}`
   return {
     som: `${fmt.format(price)}${suffix}`,
-    usd: `≈ $${fmt.format(usd)}${opts?.monthly ? '/мес' : ''}`,
+    usd: `≈ $${fmt.format(usd)}${opts?.monthly ? (opts?.labels?.perMonthShort ?? '/мес') : ''}`,
   }
 }
 

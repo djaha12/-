@@ -140,6 +140,7 @@ function toSpecialist(
     slug: row.slug,
     name: row.user.displayName ?? 'Специалист',
     profession: SPECIALIZATION_LABEL[row.specialization ?? ''] ?? 'Специалист',
+    specializationCode: row.specialization ?? undefined,
     city: row.city?.nameRu ?? '',
     verified: row.identityVerifiedAt != null,
     rating: agg ? Number(agg.avgOverall) : 0,
@@ -148,6 +149,7 @@ function toSpecialist(
     repeatClientsPct: agg ? Math.round(Number(agg.repeatClientsPct)) : 0,
     responseTime:
       minutes < 60 ? `~${minutes} минут` : `~${Math.round(minutes / 60)} ч`,
+    responseMinutes: minutes,
     memberSince: String(row.createdAt.getFullYear()),
     styles: row.styles.map((s) => s.style.nameRu),
     priceFrom: row.priceMin ?? 0,

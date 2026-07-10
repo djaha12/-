@@ -25,6 +25,8 @@ export interface Specialist {
   slug: string
   name: string
   profession: string
+  /** enum-код для локализации подписи (у мок-данных может отсутствовать) */
+  specializationCode?: string
   city: string
   verified: boolean
   rating: number
@@ -32,6 +34,8 @@ export interface Specialist {
   projectsCount: number
   repeatClientsPct: number
   responseTime: string
+  /** медиана ответа в минутах — для локализуемого формата на карточке */
+  responseMinutes?: number
   memberSince: string
   styles: string[]
   priceFrom: number // сом/м²

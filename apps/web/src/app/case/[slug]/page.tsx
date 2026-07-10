@@ -9,13 +9,15 @@ import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { BeforeAfterSlider } from '@/components/before-after-slider'
-import { CaseCard, DEAL_TYPE_LABEL, dealOutcomeLabel } from '@/components/case-card'
+import { CaseCard } from '@/components/case-card'
+import { dealOutcomeLabel, dealTypeLabel } from '@/lib/deal-labels'
 import { JsonLd } from '@/components/json-ld'
 import { ReportButton } from '@/components/report-button'
 import { ReviewCard } from '@/components/review-card'
 import { SaveButton } from '@/components/save-button'
 import { ShareButton } from '@/components/share-button'
 import { VerifiedBadge } from '@/components/verified-badge'
+import { getDict } from '@/i18n/server'
 import { getSessionUser } from '@/server/auth'
 import { getCase, markSaved } from '@/server/data'
 import { formatBudgetRange, formatDealPrice, plural } from '@/lib/utils'
@@ -63,6 +65,7 @@ export async function generateMetadata({
 }
 
 export default async function CasePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { t } = await getDict()
   const { slug } = await params
   const viewer = await getSessionUser()
   // автор и модератор видят и неопубликованный кейс (баннер статуса ниже)
@@ -121,7 +124,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
           : []),
         {
           dt: 'Тип',
-          dd: `${DEAL_TYPE_LABEL[deal.type]} · ${deal.propertyType}`,
+          dd: `${dealTypeLabel(t, deal.type)} · ${deal.propertyType}`,
           sub: item!.areaM2 ? `${item!.areaM2} м²` : '—',
         },
         { dt: 'Локация', dd: item!.location, sub: 'точный адрес — после заявки' },
@@ -228,7 +231,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
               <>
                 {/* на 390 тип/объект дублируют параметры ниже — герой должен начинаться раньше */}
                 <Badge variant="neutral" size="md" className="max-sm:hidden">
-                  {DEAL_TYPE_LABEL[deal.type]}
+                  {dealTypeLabel(t, deal.type)}
                 </Badge>
                 <Badge variant="neutral" size="md" className="max-sm:hidden">
                   {deal.propertyType}
@@ -300,7 +303,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
               sizes="(max-width: 1160px) 100vw, 1160px"
               className="block w-full"
             />
-            {deal && dealOutcomeLabel(deal) ? (
+            {deal && dealOutcomeLabel(t, deal) ? (
               <span
                 title={deal.confirmed ? 'Подтверждена клиентом' : undefined}
                 className={`absolute bottom-4 left-4 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold text-white ring-1 ring-white/15 backdrop-blur-sm ${
@@ -308,7 +311,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
                 }`}
               >
                 {deal.confirmed ? <BadgeCheck className="size-4" aria-hidden /> : null}
-                {dealOutcomeLabel(deal)}
+                {dealOutcomeLabel(t, deal)}
                 {deal.confirmed ? <span className="sr-only">, подтверждена клиентом</span> : null}
               </span>
             ) : null}

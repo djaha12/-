@@ -90,6 +90,42 @@ const ru = {
       'По этому фильтру ничего не нашлось. Посмотрите все проекты — или станьте первым, кто опубликует такой кейс.',
     feed: 'Лента проектов',
   },
+  card: {
+    deals: 'сделка|сделки|сделок',
+    confirmedByClients: 'подтверждена клиентами|подтверждены клиентами|подтверждено клиентами',
+    sale: 'продажа',
+    days: 'день|дня|дней',
+    projects: 'проект|проекта|проектов',
+    repeatClients: 'повторных клиентов',
+    responds: 'отвечает',
+    respondsMinutes: '~{n} минут',
+    respondsHours: '~{n} ч',
+    portfolioFilling: 'Портфолио заполняется',
+    profileCta: 'Профиль',
+  },
+  caseCard: {
+    sale: 'Продажа',
+    rent: 'Аренда',
+    pick: 'Подбор',
+    soldIn: 'Продано за {n} дн.',
+    rentedIn: 'Сдано за {n} дн.',
+    pickDone: 'Подбор выполнен',
+    confirmedSr: ', подтверждена клиентом',
+    forClientTask: 'Под задачу клиента',
+    priceHidden: 'Цена не публикуется',
+    som: 'сом',
+    somMonthly: 'сом/мес',
+    perMonthShort: '/мес',
+  },
+  specializations: {
+    REALTOR: 'Риелтор',
+    ARCHITECT: 'Архитектор',
+    INTERIOR_DESIGNER: 'Дизайнер интерьера',
+    LANDSCAPE_DESIGNER: 'Ландшафтный дизайнер',
+    DECORATOR_STAGER: 'Хоумстейджер',
+    VISUALIZER_3D: '3D-визуализатор',
+    PHOTO_VIDEO: 'Фотограф недвижимости',
+  },
   catalog: {
     title: 'Специалисты',
     subtitle:
@@ -188,6 +224,42 @@ const ky: Dict = {
       'Бул фильтр боюнча эч нерсе табылган жок. Бардык долбоорлорду караңыз — же мындай кейсти биринчи болуп жарыялаңыз.',
     feed: 'Долбоорлор тасмасы',
   },
+  card: {
+    deals: 'бүтүм',
+    confirmedByClients: 'кардар ырастаган',
+    sale: 'сатуу',
+    days: 'күн',
+    projects: 'долбоор',
+    repeatClients: 'кайра кайрылган кардарлар',
+    responds: 'жооп берет',
+    respondsMinutes: '~{n} мүнөт',
+    respondsHours: '~{n} саат',
+    portfolioFilling: 'Портфолио толукталууда',
+    profileCta: 'Профиль',
+  },
+  caseCard: {
+    sale: 'Сатуу',
+    rent: 'Ижара',
+    pick: 'Тандоо',
+    soldIn: '{n} күндө сатылды',
+    rentedIn: '{n} күндө ижарага берилди',
+    pickDone: 'Тандоо аткарылды',
+    confirmedSr: ', кардар ырастаган',
+    forClientTask: 'Кардардын тапшырмасы боюнча',
+    priceHidden: 'Баасы жарыяланбайт',
+    som: 'сом',
+    somMonthly: 'сом/ай',
+    perMonthShort: '/ай',
+  },
+  specializations: {
+    REALTOR: 'Риелтор',
+    ARCHITECT: 'Архитектор',
+    INTERIOR_DESIGNER: 'Интерьер дизайнери',
+    LANDSCAPE_DESIGNER: 'Ландшафт дизайнери',
+    DECORATOR_STAGER: 'Хоумстейджер',
+    VISUALIZER_3D: '3D-визуализатор',
+    PHOTO_VIDEO: 'Кыймылсыз мүлк фотографы',
+  },
   catalog: {
     title: 'Адистер',
     subtitle:
@@ -282,6 +354,42 @@ const en: Dict = {
       'No results for this filter. Browse all projects — or be the first to publish a case like this.',
     feed: 'Project feed',
   },
+  card: {
+    deals: 'deal|deals',
+    confirmedByClients: 'client-confirmed',
+    sale: 'sale',
+    days: 'day|days',
+    projects: 'project|projects',
+    repeatClients: 'repeat clients',
+    responds: 'replies',
+    respondsMinutes: '~{n} min',
+    respondsHours: '~{n} h',
+    portfolioFilling: 'Portfolio in progress',
+    profileCta: 'Profile',
+  },
+  caseCard: {
+    sale: 'Sale',
+    rent: 'Rent',
+    pick: 'Search',
+    soldIn: 'Sold in {n} d.',
+    rentedIn: 'Rented in {n} d.',
+    pickDone: 'Search completed',
+    confirmedSr: ', client-confirmed',
+    forClientTask: 'For a client’s task',
+    priceHidden: 'Price not published',
+    som: 'som',
+    somMonthly: 'som/mo',
+    perMonthShort: '/mo',
+  },
+  specializations: {
+    REALTOR: 'Realtor',
+    ARCHITECT: 'Architect',
+    INTERIOR_DESIGNER: 'Interior designer',
+    LANDSCAPE_DESIGNER: 'Landscape designer',
+    DECORATOR_STAGER: 'Home stager',
+    VISUALIZER_3D: '3D visualizer',
+    PHOTO_VIDEO: 'Real-estate photographer',
+  },
   catalog: {
     title: 'Specialists',
     subtitle: 'Choose by real work and reviews — they can only be left on completed orders.',
@@ -307,6 +415,23 @@ export const DICTS: Record<Locale, Dict> = { ru, ky, en }
 
 export function isLocale(v: string | undefined | null): v is Locale {
   return Boolean(v) && (LOCALES as readonly string[]).includes(v as string)
+}
+
+/**
+ * Формы множественного числа в словаре — через '|': ru 'сделка|сделки|сделок',
+ * en 'deal|deals', ky — одна форма (существительное после числительного не меняется).
+ */
+export function pluralize(locale: Locale, n: number, forms: string): string {
+  const parts = forms.split('|')
+  if (locale === 'ru' && parts.length >= 3) {
+    const mod10 = n % 10
+    const mod100 = n % 100
+    if (mod10 === 1 && mod100 !== 11) return parts[0]!
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return parts[1]!
+    return parts[2]!
+  }
+  if (locale === 'en' && parts.length >= 2) return n === 1 ? parts[0]! : parts[1]!
+  return parts[0]!
 }
 
 /** Подстановка {переменных}: fmt('через {n} сек', { n: 42 }) */

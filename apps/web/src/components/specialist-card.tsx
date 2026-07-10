@@ -5,34 +5,45 @@ import { Avatar } from '@/components/ui/avatar'
 import { RatingStars } from '@/components/rating-stars'
 import { VerifiedBadge } from '@/components/verified-badge'
 import type { MockImage, Specialist } from '@/mock/data'
-import { cn, plural } from '@/lib/utils'
+import { fmt, pluralize, type Dict, type Locale } from '@/i18n/dictionaries'
+import { getDict } from '@/i18n/server'
+import { cn } from '@/lib/utils'
 
 function Fact({ children }: { children: React.ReactNode }) {
   return <span className="font-medium text-foreground">{children}</span>
 }
 
 /** одна строка, которая продаёт доверие — цифры на тон сильнее меты (паттерн Airbnb) */
-function TrustLine({ s }: { s: Specialist }) {
+function TrustLine({ s, t, locale }: { s: Specialist; t: Dict; locale: Locale }) {
   if (s.dealStats) {
     const d = s.dealStats
     return (
       <>
         <Fact>
-          {d.closed} {plural(d.closed, 'сделка', 'сделки', 'сделок')}
+          {d.closed} {pluralize(locale, d.closed, t.card.deals)}
         </Fact>{' '}
-        · <Fact>{d.confirmed}</Fact> {plural(d.confirmed, 'подтверждена', 'подтверждены', 'подтверждено')} клиентами · продажа{' '}
+        · <Fact>{d.confirmed}</Fact> {pluralize(locale, d.confirmed, t.card.confirmedByClients)} ·{' '}
+        {t.card.sale}{' '}
         <Fact>
-          ~{d.medianDaysOnMarket} {plural(d.medianDaysOnMarket, 'день', 'дня', 'дней')}
+          ~{d.medianDaysOnMarket} {pluralize(locale, d.medianDaysOnMarket, t.card.days)}
         </Fact>
       </>
     )
   }
+  // минуты ответа локализуемы через responseMinutes; мок-данные без него — ru-фолбэк
+  const responds =
+    s.responseMinutes != null
+      ? s.responseMinutes < 60
+        ? fmt(t.card.respondsMinutes, { n: s.responseMinutes })
+        : fmt(t.card.respondsHours, { n: Math.round(s.responseMinutes / 60) })
+      : s.responseTime
   return (
     <>
       <Fact>
-        {s.projectsCount} {plural(s.projectsCount, 'проект', 'проекта', 'проектов')}
+        {s.projectsCount} {pluralize(locale, s.projectsCount, t.card.projects)}
       </Fact>{' '}
-      · <Fact>{s.repeatClientsPct}%</Fact> повторных клиентов · отвечает <Fact>{s.responseTime}</Fact>
+      · <Fact>{s.repeatClientsPct}%</Fact> {t.card.repeatClients} · {t.card.responds}{' '}
+      <Fact>{responds}</Fact>
     </>
   )
 }
@@ -43,13 +54,18 @@ export interface SpecialistThumb {
   image: MockImage
 }
 
-export function SpecialistCard({
+export async function SpecialistCard({
   specialist: s,
   thumbs,
 }: {
   specialist: Specialist
   thumbs: SpecialistThumb[]
 }) {
+  const { locale, t } = await getDict()
+  const profession =
+    (s.specializationCode &&
+      (t.specializations as Record<string, string>)[s.specializationCode]) ||
+    s.profession
   return (
     <Link
       href={`/s/${s.slug}`}
@@ -68,7 +84,7 @@ export function SpecialistCard({
             ) : null}
           </p>
           <p className="mt-0.5 truncate text-sm text-muted-foreground">
-            {s.profession}
+            {profession}
             {s.worksAt ? ` · ${s.worksAt}` : ''}
           </p>
           <p className="mt-0.5 flex items-center gap-1 text-[13px] text-muted-foreground">
@@ -117,16 +133,16 @@ export function SpecialistCard({
         </div>
       ) : (
         <div className="mt-4 flex h-24 items-center justify-center rounded-lg border border-dashed border-border-strong text-[13px] text-faint-foreground sm:h-28">
-          Портфолио заполняется
+          {t.card.portfolioFilling}
         </div>
       )}
 
       <div className="mt-4 flex items-center justify-between gap-3">
         <p className="truncate text-[13px] text-muted-foreground">
-          <TrustLine s={s} />
+          <TrustLine s={s} t={t} locale={locale} />
         </p>
         <span className="flex shrink-0 items-center gap-0.5 text-sm font-semibold text-accent">
-          Профиль
+          {t.card.profileCta}
           <ChevronRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
         </span>
       </div>

@@ -35,6 +35,14 @@ const main = async () => {
   // переключатель отрисован в футере
   check('11. переключатель в футере (Кыргызча)', ru.includes('Кыргызча') && ru.includes('English'), 'нет')
 
+  // M10.2: доменные строки карточек
+  check('12. ky: карточка каталога («кардар ырастаган»)', kyCat.includes('кардар ырастаган'), 'нет')
+  check('13. ky: бейдж сделки в ленте («күндө сатылды»)', ky.includes('күндө сатылды'), 'нет')
+  const enCat = await page('/specialists', 'en')
+  check('14. en: карточка каталога (client-confirmed)', enCat.includes('client-confirmed'), 'нет')
+  check('15. en: бейдж сделки в ленте (Sold in)', en.includes('Sold in'), 'нет')
+  check('16. ky: специализация на карточке («Интерьер дизайнери»)', kyCat.includes('Интерьер дизайнери'), 'нет')
+
   console.log(`\n${pass}/${pass + fail} проверок пройдено`)
   process.exit(fail ? 1 : 0)
 }
