@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { Bell, Bookmark, MapPin, Menu, MessageCircle, Search, ShieldCheck } from 'lucide-react'
+import { Bell, Bookmark, MapPin, MessageCircle, Search, ShieldCheck } from 'lucide-react'
 import { canModerate } from '@atelier/core'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { LogoutButton } from '@/components/logout-button'
+import { MobileMenu } from '@/components/mobile-menu'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { getDict } from '@/i18n/server'
 import { fmt } from '@/i18n/dictionaries'
@@ -141,9 +142,7 @@ export async function SiteHeader() {
             </>
           )}
           {/* мобильная навигация: Проекты/Специалисты/Брифы + «Я специалист» */}
-          <Button variant="ghost" size="icon" className="lg:hidden" aria-label={t.header.menu}>
-            <Menu />
-          </Button>
+          <MobileMenu showSpecialistCta={!user?.specialistSlug} />
         </div>
       </div>
     </header>
