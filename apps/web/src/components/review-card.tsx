@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { RatingStars } from '@/components/rating-stars'
 import type { Review } from '@/mock/data'
 import { getDict } from '@/i18n/server'
+import { formatRating } from '@/lib/utils'
 
 const SUBSCALE_KEYS = ['quality', 'timing', 'communication', 'budget'] as const
 
@@ -13,7 +14,7 @@ export async function ReviewCard({
   review: Review
   trustLabel?: string
 }) {
-  const { t } = await getDict()
+  const { locale, t } = await getDict()
   const subscales = SUBSCALE_KEYS.map((key) => ({ key, label: t.review[key] }))
   const trust = trustLabel ?? t.casePage.viaAtelierOrder
   const overall = (review.quality + review.timing + review.communication + review.budget) / 4
@@ -31,7 +32,7 @@ export async function ReviewCard({
         </div>
         <span className="flex items-center gap-1.5">
           <RatingStars value={overall} />
-          <span className="text-sm font-semibold">{overall.toFixed(1).replace('.', ',')}</span>
+          <span className="text-sm font-semibold">{formatRating(locale, overall)}</span>
         </span>
       </div>
 
@@ -40,7 +41,7 @@ export async function ReviewCard({
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {subscales.map(({ key, label }) => (
           <Badge key={key} variant="neutral">
-            {label} {review[key]},0
+            {label} {formatRating(locale, review[key])}
           </Badge>
         ))}
         {/* маркер доверия: на 390 — своя строка, не пятая подшкала */}

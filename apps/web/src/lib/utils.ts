@@ -11,6 +11,12 @@ export function formatSom(value: number, som = 'сом'): string {
   return `${new Intl.NumberFormat('ru-RU').format(value)} ${som}`
 }
 
+/** рейтинг «4,8»/«4.8»: десятичный разделитель по локали (ru/ky — запятая) */
+export function formatRating(locale: string, value: number): string {
+  const s = value.toFixed(1)
+  return locale === 'en' ? s : s.replace('.', ',')
+}
+
 export function formatBudgetRange(
   fromSom: number,
   toSom: number,

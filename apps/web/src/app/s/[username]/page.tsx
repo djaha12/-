@@ -20,7 +20,7 @@ import { getSessionUser } from '@/server/auth'
 import { getSpecialist, markSaved } from '@/server/data'
 import { fmt, pluralize } from '@/i18n/dictionaries'
 import { getDict } from '@/i18n/server'
-import { formatSom, plural } from '@/lib/utils'
+import { formatRating, formatSom, plural } from '@/lib/utils'
 import { SITE_URL } from '@/lib/site'
 
 export const dynamic = 'force-dynamic'
@@ -232,7 +232,7 @@ export default async function ProfilePage({
                 dd: (
                   <span className="flex items-center gap-1.5">
                     <span className="font-display text-[22px] font-semibold">
-                      {s.rating.toFixed(1).replace('.', ',')}
+                      {formatRating(locale, s.rating)}
                     </span>
                     <RatingStars value={s.rating} size={13} />
                   </span>
@@ -321,11 +321,7 @@ export default async function ProfilePage({
             {isRealtor && s.dealStats ? (
               // кейсы vs «сделок всего» в статистике — снимаем противоречие явно
               <p className="mb-4 text-[13px] text-muted-foreground">
-                {fmt(t.profile.casesOfDeals, {
-                  n: ownCases.length,
-                  word: pluralize(locale, ownCases.length, t.card.deals),
-                  total: s.dealStats.closed,
-                })}
+                {fmt(t.profile.casesOfDeals, { n: ownCases.length, total: s.dealStats.closed })}
               </p>
             ) : null}
             {/* в витрине специалиста — ровные ряды (Behance), masonry только в ленте */}
@@ -341,7 +337,7 @@ export default async function ProfilePage({
               <aside className="h-fit rounded-xl border border-border bg-surface p-5 lg:sticky lg:top-36">
                 <p className="flex items-baseline gap-2">
                   <span className="font-display text-5xl font-semibold">
-                    {s.rating.toFixed(1).replace('.', ',')}
+                    {formatRating(locale, s.rating)}
                   </span>
                   <RatingStars value={s.rating} />
                 </p>
@@ -362,7 +358,7 @@ export default async function ProfilePage({
                         />
                       </span>
                       <span className="w-7 text-right text-[13px] font-semibold">
-                        {row.value.toFixed(1).replace('.', ',')}
+                        {formatRating(locale, row.value)}
                       </span>
                     </div>
                   ))}

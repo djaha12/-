@@ -7,7 +7,7 @@ import { VerifiedBadge } from '@/components/verified-badge'
 import type { MockImage, Specialist } from '@/mock/data'
 import { fmt, pluralize, type Dict, type Locale } from '@/i18n/dictionaries'
 import { getDict } from '@/i18n/server'
-import { cn } from '@/lib/utils'
+import { cn, formatRating } from '@/lib/utils'
 
 function Fact({ children }: { children: React.ReactNode }) {
   return <span className="font-medium text-foreground">{children}</span>
@@ -97,7 +97,7 @@ export async function SpecialistCard({
         </div>
         <span className="flex shrink-0 items-center gap-1.5 pt-0.5">
           <RatingStars value={s.rating} size={13} />
-          <span className="text-sm font-bold">{s.rating.toFixed(1).replace('.', ',')}</span>
+          <span className="text-sm font-bold">{formatRating(locale, s.rating)}</span>
           <span className="text-[13px] text-muted-foreground">({s.reviewsCount})</span>
         </span>
       </div>

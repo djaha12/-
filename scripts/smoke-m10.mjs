@@ -60,10 +60,10 @@ const main = async () => {
   check('11. переключатель в футере (Кыргызча)', ru.includes('Кыргызча') && ru.includes('English'), 'нет')
 
   // M10.2: доменные строки карточек
-  check('12. ky: карточка каталога («кардар ырастаган»)', kyCat.includes('кардар ырастаган'), 'нет')
+  check('12. ky: карточка каталога («кардарлар ырастаган»)', kyCat.includes('кардарлар ырастаган'), 'нет')
   check('13. ky: бейдж сделки в ленте («күндө сатылды»)', ky.includes('күндө сатылды'), 'нет')
   const enCat = await page('/specialists', 'en')
-  check('14. en: карточка каталога (client-confirmed)', enCat.includes('client-confirmed'), 'нет')
+  check('14. en: карточка каталога (confirmed by clients)', enCat.includes('confirmed by clients'), 'нет')
   check('15. en: бейдж сделки в ленте (Sold in)', en.includes('Sold in'), 'нет')
   check('16. ky: специализация на карточке («Интерьер дизайнери»)', kyCat.includes('Интерьер дизайнери'), 'нет')
 
@@ -87,7 +87,7 @@ const main = async () => {
     check('20. ky: профиль — CTA и таб («Табыштама жөнөтүү», «Адис жөнүндө»)', kyProfile.includes('Табыштама жөнөтүү') && kyProfile.includes('Адис жөнүндө'), 'нет')
     check('21. ky: профиль — статистика («Жооп берет»)', kyProfile.includes('Жооп берет'), 'нет')
     const enProfile = await page(`/s/${profileSlug}`, 'en')
-    check('22. en: профиль (Send a request + Rating)', enProfile.includes('Send a request') && enProfile.includes('Rating'), 'нет')
+    check('22. en: профиль (Send a request + Time to sell)', enProfile.includes('Send a request') && enProfile.includes('Time to sell'), 'нет')
   } else {
     check('20. профиль для проверки найден', false, 'нет slug в каталоге')
   }
@@ -95,7 +95,12 @@ const main = async () => {
   // M10.4: мастера (онбординг и кейс) — под логином
   const cookie = await login('+996700088062')
   const kyOnb = await page('/onboarding', 'ky', cookie)
-  check('23. ky: онбординг («Адистин профили», «Аты-жөнү»)', kyOnb.includes('Адистин профили') && kyOnb.includes('Аты-жөнү'), 'нет')
+  // повторный прогон без cleanup: профиль уже создан → режим редактирования
+  check(
+    '23. ky: онбординг («Адистин профили»/«Профилди тууралоо», «Аты-жөнү»)',
+    (kyOnb.includes('Адистин профили') || kyOnb.includes('Профилди тууралоо')) && kyOnb.includes('Аты-жөнү'),
+    'нет',
+  )
   await rpc(cookie)('profiles.setup', {
     displayName: 'Смоук И18н',
     specialization: 'REALTOR',
