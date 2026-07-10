@@ -8,6 +8,8 @@ import { MAX_EXPERTISE_DISTRICTS } from '@atelier/core'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TelegramLinkButton } from '@/components/telegram-link'
+import { useI18n } from '@/i18n/client'
+import { fmt } from '@/i18n/dictionaries'
 import { trpc } from '@/lib/trpc'
 import { cn } from '@/lib/utils'
 
@@ -28,18 +30,17 @@ export interface OnboardingPrefill {
   telegramDeepLink: string | null
 }
 
-const SPECIALIZATIONS = [
-  { value: 'REALTOR', label: 'Риелтор' },
-  { value: 'INTERIOR_DESIGNER', label: 'Дизайнер интерьера' },
-  { value: 'ARCHITECT', label: 'Архитектор' },
-  { value: 'DECORATOR_STAGER', label: 'Декоратор-стейджер' },
-  { value: 'VISUALIZER_3D', label: '3D-визуализатор' },
-  { value: 'PHOTO_VIDEO', label: 'Фотограф недвижимости' },
-  { value: 'LANDSCAPE_DESIGNER', label: 'Ландшафтный дизайнер' },
+// лейблы — из словаря t.specializations: онбординг и каталог называют роли одинаково
+const SPECIALIZATION_CODES = [
+  'REALTOR',
+  'INTERIOR_DESIGNER',
+  'ARCHITECT',
+  'DECORATOR_STAGER',
+  'VISUALIZER_3D',
+  'PHOTO_VIDEO',
+  'LANDSCAPE_DESIGNER',
 ] as const
-type Spec = (typeof SPECIALIZATIONS)[number]['value']
-
-const STEPS = ['О вас', 'Районы', 'Готово'] as const
+type Spec = (typeof SPECIALIZATION_CODES)[number]
 
 function Chip({
   active,
@@ -80,6 +81,8 @@ export function OnboardingWizard({
   prefill: OnboardingPrefill
   districts: Array<{ slug: string; name: string }>
 }) {
+  const { t } = useI18n()
+  const steps = [t.onboarding.stepAbout, t.onboarding.stepDistricts, t.onboarding.stepDone]
   const router = useRouter()
   const [step, setStep] = React.useState(1)
   const [name, setName] = React.useState(prefill.displayName)
@@ -114,8 +117,8 @@ export function OnboardingWizard({
 
   return (
     <div>
-      <ol className="flex items-center gap-2" aria-label="Шаги настройки профиля">
-        {STEPS.map((label, i) => {
+      <ol className="flex items-center gap-2" aria-label={t.onboarding.stepsAria}>
+        {steps.map((label, i) => {
           const n = i + 1
           const state = n < step ? 'done' : n === step ? 'current' : 'next'
           return (
@@ -142,55 +145,55 @@ export function OnboardingWizard({
               >
                 {label}
               </span>
-              {n < STEPS.length ? <span className="h-px flex-1 bg-border" aria-hidden /> : null}
+              {n < steps.length ? <span className="h-px flex-1 bg-border" aria-hidden /> : null}
             </li>
           )
         })}
       </ol>
-      <p className="mt-2 text-sm font-medium sm:hidden">Шаг {step} из 3</p>
+      <p className="mt-2 text-sm font-medium sm:hidden">
+        {fmt(t.wizard.stepOf, { n: step, total: 3 })}
+      </p>
 
       <div className="mt-6 rounded-2xl border border-border bg-surface p-5 sm:p-7">
         {step === 1 ? (
           <div className="animate-fade-up space-y-5">
             <div>
               <h2 className="font-display text-xl font-semibold tracking-tight">
-                {prefill.isEdit ? 'Профиль' : 'Кто вы'}
+                {prefill.isEdit ? t.onboarding.profileTitle : t.onboarding.whoTitle}
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Так вас увидят клиенты в каталоге и на странице профиля.
-              </p>
+              <p className="mt-1 text-sm text-muted-foreground">{t.onboarding.whoSub}</p>
             </div>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-semibold">Имя и фамилия</span>
+              <span className="mb-1.5 block text-sm font-semibold">{t.onboarding.nameLabel}</span>
               {/* без autoFocus: на мобильном клавиатура прятала бы плашку и чипы */}
               <Input
                 value={name}
-                placeholder="Айгерим Токтогулова"
+                placeholder={t.onboarding.namePlaceholder}
                 onChange={(e) => setName(e.target.value)}
               />
             </label>
             <div>
-              <p className="mb-1.5 text-sm font-semibold">Чем занимаетесь</p>
+              <p className="mb-1.5 text-sm font-semibold">{t.onboarding.whatLabel}</p>
               <div className="flex flex-wrap gap-2">
-                {SPECIALIZATIONS.map((s) => (
-                  <Chip key={s.value} active={spec === s.value} onClick={() => setSpec(s.value)}>
-                    {s.label}
+                {SPECIALIZATION_CODES.map((code) => (
+                  <Chip key={code} active={spec === code} onClick={() => setSpec(code)}>
+                    {t.specializations[code]}
                   </Chip>
                 ))}
               </div>
             </div>
             <label className="block">
               <span className="mb-1.5 block text-sm font-semibold">
-                Работаете в агентстве или студии?{' '}
-                <span className="font-normal text-muted-foreground">Необязательно</span>
+                {t.onboarding.worksAtLabel}{' '}
+                <span className="font-normal text-muted-foreground">{t.onboarding.optional}</span>
               </span>
               <Input
                 value={worksAt}
-                placeholder="Например: Ак-Үй"
+                placeholder={t.onboarding.worksAtPlaceholder}
                 onChange={(e) => setWorksAt(e.target.value)}
               />
               <span className="mt-1.5 block text-[13px] text-muted-foreground">
-                Покажем меткой «работает в …» — репутация при этом остаётся вашей.
+                {t.onboarding.worksAtHint}
               </span>
             </label>
           </div>
@@ -200,11 +203,10 @@ export function OnboardingWizard({
           <div className="animate-fade-up space-y-5">
             <div>
               <h2 className="font-display text-xl font-semibold tracking-tight">
-                Районы, где вы работаете
+                {t.onboarding.districtsTitle}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                До {MAX_EXPERTISE_DISTRICTS} районов Бишкека. Фокус вызывает больше доверия, чем
-                «работаю везде», — по районам клиенты фильтруют каталог.
+                {fmt(t.onboarding.districtsSub, { n: MAX_EXPERTISE_DISTRICTS })}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -229,7 +231,7 @@ export function OnboardingWizard({
                   : 'text-muted-foreground',
               )}
             >
-              Выбрано: {selected.length} из {MAX_EXPERTISE_DISTRICTS}. Можно изменить в любой момент.
+              {fmt(t.onboarding.selectedOf, { n: selected.length, max: MAX_EXPERTISE_DISTRICTS })}
             </p>
           </div>
         ) : null}
@@ -240,18 +242,16 @@ export function OnboardingWizard({
               <Check className="size-7" aria-hidden />
             </span>
             <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">
-              {prefill.isEdit ? 'Сохранено' : 'Профиль готов'}
+              {prefill.isEdit ? t.onboarding.savedTitle : t.onboarding.readyTitle}
             </h2>
             <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-muted-foreground">
-              {prefill.isEdit
-                ? 'Изменения уже видны в каталоге и на странице профиля.'
-                : 'Осталось наполнить его работой: первая опубликованная сделка — это ваша визитка и вход в каталог.'}
+              {prefill.isEdit ? t.onboarding.savedText : t.onboarding.readyText}
             </p>
             {!prefill.telegramLinked && prefill.telegramDeepLink ? (
               <div className="mx-auto mt-5 max-w-sm rounded-xl bg-surface-muted px-4 py-4">
                 <p className="flex items-center justify-center gap-1.5 text-sm font-semibold">
                   <Send className="size-4" aria-hidden />
-                  Заявки — мгновенно в Telegram
+                  {t.onboarding.tgTitle}
                 </p>
                 <div className="mt-3">
                   {/* soft: единственный primary экрана — CTA ниже */}
@@ -264,13 +264,13 @@ export function OnboardingWizard({
                 <>
                   <Button asChild size="lg">
                     <Link href={setup.data ? `/s/${setup.data.slug}` : '/specialists'}>
-                      Открыть профиль
+                      {t.onboarding.openProfile}
                     </Link>
                   </Button>
                   <Button asChild variant="secondary" size="lg">
                     <Link href="/new">
                       <ImagePlus aria-hidden />
-                      Добавить сделку
+                      {t.onboarding.addDeal}
                     </Link>
                   </Button>
                 </>
@@ -279,12 +279,12 @@ export function OnboardingWizard({
                   <Button asChild size="lg">
                     <Link href="/new">
                       <ImagePlus aria-hidden />
-                      Добавить первую сделку
+                      {t.onboarding.addFirstDeal}
                     </Link>
                   </Button>
                   <Button asChild variant="secondary" size="lg">
                     <Link href={setup.data ? `/s/${setup.data.slug}` : '/specialists'}>
-                      Открыть профиль
+                      {t.onboarding.openProfile}
                     </Link>
                   </Button>
                 </>
@@ -308,18 +308,18 @@ export function OnboardingWizard({
             {step > 1 ? (
               <Button variant="ghost" onClick={() => setStep(1)} className="shrink-0">
                 <ArrowLeft aria-hidden />
-                Назад
+                {t.wizard.back}
               </Button>
             ) : null}
             <div className={cn('min-w-0 flex-1 sm:flex-none', step === 1 && 'sm:ml-auto')}>
               {step === 1 ? (
                 <Button size="lg" disabled={!canNext} onClick={() => setStep(2)} className="w-full">
-                  Дальше
+                  {t.onboarding.nextBtn}
                   <ArrowRight aria-hidden />
                 </Button>
               ) : (
                 <Button size="lg" loading={setup.isPending} onClick={submit} className="w-full">
-                  {prefill.isEdit ? 'Сохранить' : 'Создать профиль'}
+                  {prefill.isEdit ? t.onboarding.save : t.onboarding.createProfile}
                   <ArrowRight aria-hidden />
                 </Button>
               )}

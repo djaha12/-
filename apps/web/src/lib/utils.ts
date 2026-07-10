@@ -7,8 +7,8 @@ export function cn(...inputs: ClassValue[]) {
 
 const SOM_PER_USD = 87.4 // мок; в проде — курс НБКР из БД
 
-export function formatSom(value: number): string {
-  return `${new Intl.NumberFormat('ru-RU').format(value)} сом`
+export function formatSom(value: number, som = 'сом'): string {
+  return `${new Intl.NumberFormat('ru-RU').format(value)} ${som}`
 }
 
 export function formatBudgetRange(

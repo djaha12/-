@@ -1,11 +1,35 @@
 // Смоук M10: i18n ru/ky/en — cookie-локаль, словари хрома, fallback.
-// Требует сервер :3000. Данные не мутирует — cleanup не нужен.
+// Требует сервер :3000 с OTP_DEV_MODE=1. Блок M10.4 создаёт тест-профиль
+// (+996700088062) — очистка: psql -f scripts/smoke-cleanup.sql
 const BASE = 'http://127.0.0.1:3000'
 
 let pass = 0, fail = 0
 const check = (n, ok, got) => { console.log(`${n}:`, ok ? '✓' : `✗ (${got})`); ok ? pass++ : fail++ }
-const page = async (path, locale) =>
-  (await fetch(`${BASE}${path}`, locale ? { headers: { cookie: `atelier_locale=${locale}` } } : {})).text()
+const page = async (path, locale, extraCookie = '') =>
+  (
+    await fetch(`${BASE}${path}`, {
+      headers: {
+        cookie: [extraCookie, locale ? `atelier_locale=${locale}` : ''].filter(Boolean).join('; '),
+      },
+    })
+  ).text()
+
+const rpc = (cookie) => async (path, input) => {
+  const res = await fetch(`${BASE}/api/trpc/${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) },
+    body: JSON.stringify({ json: input }),
+  })
+  const body = await res.json()
+  return { status: res.status, data: body?.result?.data?.json, setCookie: res.headers.get('set-cookie') }
+}
+
+async function login(phone) {
+  const anon = rpc()
+  const r1 = await anon('auth.requestOtp', { phone })
+  const r2 = await anon('auth.verifyOtp', { phone, code: r1.data.devCode })
+  return r2.setCookie.split(';')[0]
+}
 
 const main = async () => {
   // ru по умолчанию
@@ -55,6 +79,32 @@ const main = async () => {
   } else {
     check('17. кейс для проверки найден', false, 'нет slug в ленте')
   }
+
+  // M10.4: профиль специалиста
+  const profileSlug = (kyCat.match(/\/s\/([a-z0-9-]+)/) || [])[1]
+  if (profileSlug) {
+    const kyProfile = await page(`/s/${profileSlug}`, 'ky')
+    check('20. ky: профиль — CTA и таб («Табыштама жөнөтүү», «Адис жөнүндө»)', kyProfile.includes('Табыштама жөнөтүү') && kyProfile.includes('Адис жөнүндө'), 'нет')
+    check('21. ky: профиль — статистика («Жооп берет»)', kyProfile.includes('Жооп берет'), 'нет')
+    const enProfile = await page(`/s/${profileSlug}`, 'en')
+    check('22. en: профиль (Send a request + Rating)', enProfile.includes('Send a request') && enProfile.includes('Rating'), 'нет')
+  } else {
+    check('20. профиль для проверки найден', false, 'нет slug в каталоге')
+  }
+
+  // M10.4: мастера (онбординг и кейс) — под логином
+  const cookie = await login('+996700088062')
+  const kyOnb = await page('/onboarding', 'ky', cookie)
+  check('23. ky: онбординг («Адистин профили», «Аты-жөнү»)', kyOnb.includes('Адистин профили') && kyOnb.includes('Аты-жөнү'), 'нет')
+  await rpc(cookie)('profiles.setup', {
+    displayName: 'Смоук И18н',
+    specialization: 'REALTOR',
+    districtSlugs: [],
+  })
+  const kyNew = await page('/new', 'ky', cookie)
+  check('24. ky: мастер кейса («Жаңы кейс», «Объекттин сүрөттөрү»)', kyNew.includes('Жаңы кейс') && kyNew.includes('Объекттин сүрөттөрү'), 'нет')
+  const enNew = await page('/new', 'en', cookie)
+  check('25. en: мастер кейса (Property photos)', enNew.includes('Property photos'), 'нет')
 
   console.log(`\n${pass}/${pass + fail} проверок пройдено`)
   process.exit(fail ? 1 : 0)

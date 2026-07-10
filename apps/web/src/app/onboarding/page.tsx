@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { prisma } from '@atelier/db'
 import { Button } from '@/components/ui/button'
 import { OnboardingWizard, type OnboardingPrefill } from '@/components/onboarding-wizard'
+import { getDict } from '@/i18n/server'
 import { getSessionUser } from '@/server/auth'
 import { getDistricts } from '@/server/data'
 import { makeLinkToken, TELEGRAM_BOT_USERNAME } from '@/server/telegram'
@@ -43,15 +44,17 @@ export default async function OnboardingPage() {
         : null,
   }
 
+  const { t } = await getDict()
+
   return (
     <>
       {/* фокус-режим, как в мастере кейса: ничего лишнего, выход под рукой */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-2xl items-center justify-between px-4 sm:px-6">
           <span className="font-display text-[22px] font-semibold tracking-tight">
-            {prefill.isEdit ? 'Настройка профиля' : 'Профиль специалиста'}
+            {prefill.isEdit ? t.onboarding.headerEdit : t.onboarding.headerNew}
           </span>
-          <Button asChild variant="ghost" size="icon" aria-label="Закрыть мастер">
+          <Button asChild variant="ghost" size="icon" aria-label={t.wizard.closeWizard}>
             <Link href={user.specialistSlug ? `/s/${user.specialistSlug}` : '/'}>
               <X />
             </Link>
@@ -61,8 +64,7 @@ export default async function OnboardingPage() {
       <main className="mx-auto max-w-2xl px-4 pt-8 pb-24 sm:px-6">
         {!prefill.isEdit ? (
           <p className="mb-6 rounded-xl bg-surface-muted px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-            Мы не публикуем объявления — мы храним вашу репутацию. Профиль и первая сделка
-            займут около семи минут.
+            {t.onboarding.intro}
           </p>
         ) : null}
         <OnboardingWizard prefill={prefill} districts={districts} />

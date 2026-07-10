@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input'
 import { CaseCard } from '@/components/case-card'
 import { derivePriceRange } from '@atelier/core'
 import { img, type CaseItem, type DealType } from '@/mock/data'
+import { useI18n } from '@/i18n/client'
+import { fmt } from '@/i18n/dictionaries'
 import { trpc } from '@/lib/trpc'
 import { cn, formatDealPrice } from '@/lib/utils'
 
@@ -113,7 +115,6 @@ function Segmented<T extends string>({
 
 /* ————— мастер ————— */
 
-const STEPS = ['Фото', 'Детали', 'Публикация'] as const
 const DRAFT_KEY = 'atelier-case-draft'
 const DEMO_POOL = ['d01', 'd02', 'g3', 'd05', 'g2', 'd06']
 const DISTRICTS = ['Центр', 'Джал', 'Магистраль', 'Кок-Жар', 'Асанбай', 'Тунгуч']
@@ -145,6 +146,8 @@ interface CaseWizardProps {
 }
 
 export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizardProps) {
+  const { t } = useI18n()
+  const steps = [t.wizard.stepPhotos, t.wizard.stepDetails, t.wizard.stepPublish]
   const router = useRouter()
   const fileInput = React.useRef<HTMLInputElement>(null)
   const [step, setStep] = React.useState(Math.min(3, Math.max(1, initialStep)))
@@ -240,13 +243,13 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
             router.push('/login')
             return
           }
-          throw new Error(json.error ?? 'Не получилось загрузить фото.')
+          throw new Error(json.error ?? t.wizard.uploadFailed)
         }
         setPhotos((p) => [...p, json])
         setTouched(true)
       }
     } catch (e) {
-      setUploadError(e instanceof Error ? e.message : 'Не получилось загрузить фото.')
+      setUploadError(e instanceof Error ? e.message : t.wizard.uploadFailed)
     } finally {
       setUploading(false)
     }
@@ -259,9 +262,9 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
   const preview: CaseItem = {
     id: 'preview',
     slug: '',
-    title: title || 'Название кейса',
+    title: title || t.wizard.previewCaseName,
     specialistSlug: '',
-    authorName: 'Ваш профиль',
+    authorName: t.wizard.previewAuthor,
     location: `Бишкек, ${district}`,
     styles: kind === 'project' ? [style] : [],
     areaM2: areaM2 ? Number(areaM2) : undefined,
@@ -305,24 +308,22 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
           )}
         </span>
         <h2 className="mt-4 font-display text-2xl font-semibold tracking-tight">
-          {publish.data.pending ? 'Кейс отправлен на проверку' : 'Кейс опубликован'}
+          {publish.data.pending ? t.wizard.pendingTitle : t.wizard.publishedTitle}
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-muted-foreground">
-          {publish.data.pending
-            ? 'Первые кейсы новых авторов смотрит модератор — обычно до пары часов. После одобрения кейс появится в ленте, а публикации станут мгновенными.'
-            : 'Он уже в ленте и в вашем профиле.'}
+          {publish.data.pending ? t.wizard.pendingText : t.wizard.publishedText}
         </p>
         <p className="mx-auto mt-3 max-w-sm rounded-lg bg-surface-muted px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">
-          Совет: сделка, проведённая через Ателье, получает бейдж
+          {t.wizard.tipPrefix}
           <span className="mx-1 inline-flex translate-y-0.5 items-center gap-0.5 font-semibold text-success">
             <BadgeCheck className="size-3.5" aria-hidden />
-            Подтверждено клиентом
+            {t.wizard.tipBadge}
           </span>
-          и поднимается в ленте.
+          {t.wizard.tipSuffix}
         </p>
         <div className="mt-6 flex justify-center gap-3">
           <Button asChild variant="secondary">
-            <Link href={`/case/${publish.data.slug}`}>Открыть кейс</Link>
+            <Link href={`/case/${publish.data.slug}`}>{t.wizard.openCase}</Link>
           </Button>
           <Button
             onClick={() => {
@@ -333,7 +334,7 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
               setConsent(false)
             }}
           >
-            Создать ещё
+            {t.wizard.createMore}
           </Button>
         </div>
       </div>
@@ -343,8 +344,8 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
   return (
     <div>
       {/* шаги: всегда видно, где ты и сколько осталось */}
-      <ol className="flex items-center gap-2" aria-label="Шаги создания кейса">
-        {STEPS.map((label, i) => {
+      <ol className="flex items-center gap-2" aria-label={t.wizard.stepsAria}>
+        {steps.map((label, i) => {
           const n = i + 1
           const state = n < step ? 'done' : n === step ? 'current' : 'next'
           return (
@@ -367,20 +368,22 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
               >
                 {label}
               </span>
-              {n < STEPS.length ? <span className="h-px flex-1 bg-border" aria-hidden /> : null}
+              {n < steps.length ? <span className="h-px flex-1 bg-border" aria-hidden /> : null}
             </li>
           )
         })}
       </ol>
-      <p className="mt-2 text-sm font-medium sm:hidden">Шаг {step} из 3</p>
+      <p className="mt-2 text-sm font-medium sm:hidden">
+        {fmt(t.wizard.stepOf, { n: step, total: 3 })}
+      </p>
 
       <div className="mt-6 rounded-2xl border border-border bg-surface p-5 sm:p-7">
         {step === 1 ? (
           <div className="animate-fade-up">
-            <h2 className="font-display text-xl font-semibold tracking-tight">Фото объекта</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Добавьте 3–20 фото. Геометки срезаются автоматически — адрес не утечёт.
-            </p>
+            <h2 className="font-display text-xl font-semibold tracking-tight">
+              {t.wizard.photosTitle}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t.wizard.photosHint}</p>
             <input
               ref={fileInput}
               type="file"
@@ -400,19 +403,19 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                 >
                   <Image
                     src={photo.src}
-                    alt={`Фото ${i + 1}`}
+                    alt={fmt(t.wizard.photoAlt, { n: i + 1 })}
                     fill
                     sizes="150px"
                     className="object-cover"
                   />
                   {i === 0 ? (
                     <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
-                      Обложка
+                      {t.wizard.cover}
                     </span>
                   ) : null}
                   <button
                     type="button"
-                    aria-label={`Убрать фото ${i + 1}`}
+                    aria-label={fmt(t.wizard.removePhoto, { n: i + 1 })}
                     onClick={() => {
                       setPhotos((p) => p.filter((x) => x.storageKey !== photo.storageKey))
                       setTouched(true)
@@ -436,16 +439,14 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                     <ImagePlus className="size-6" aria-hidden />
                   )}
                   <span className="text-[13px] font-medium">
-                    {uploading ? 'Загружаем…' : 'Добавить'}
+                    {uploading ? t.wizard.uploading : t.wizard.add}
                   </span>
                 </button>
               ) : null}
             </div>
             {uploadError ? <p className="mt-3 text-[13px] text-danger">{uploadError}</p> : null}
             {photos.length === 0 && !uploadError ? (
-              <p className="mt-3 text-[13px] text-muted-foreground">
-                Хотя бы одно фото — и можно идти дальше. Первое станет обложкой.
-              </p>
+              <p className="mt-3 text-[13px] text-muted-foreground">{t.wizard.firstPhotoHint}</p>
             ) : null}
             {process.env.NODE_ENV === 'development' ? (
               <Button
@@ -469,7 +470,9 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
         {step === 2 ? (
           <div className="animate-fade-up space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-xl font-semibold tracking-tight">Детали</h2>
+              <h2 className="font-display text-xl font-semibold tracking-tight">
+                {t.wizard.stepDetails}
+              </h2>
               <Segmented
                 value={kind}
                 onChange={(v) => {
@@ -477,16 +480,18 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                   setTouched(true)
                 }}
                 options={[
-                  { value: 'deal', label: 'Сделка' },
-                  { value: 'project', label: 'Проект' },
+                  { value: 'deal', label: t.wizard.kindDeal },
+                  { value: 'project', label: t.wizard.kindProject },
                 ]}
               />
             </div>
 
-            <Field label="Название" hint="Коротко и по делу — как рассказали бы клиенту.">
+            <Field label={t.wizard.titleLabel} hint={t.wizard.titleHint}>
               <Input
                 value={title}
-                placeholder={kind === 'deal' ? 'Двушка на Токтогула, 58 м²' : 'Лофт для молодой пары в Джале'}
+                placeholder={
+                  kind === 'deal' ? t.wizard.titlePlaceholderDeal : t.wizard.titlePlaceholderProject
+                }
                 onChange={(e) => {
                   setTitle(e.target.value)
                   setTouched(true)
@@ -496,13 +501,13 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
 
             {kind === 'deal' ? (
               <>
-                <Field label="Тип сделки">
+                <Field label={t.wizard.dealTypeLabel}>
                   <div className="flex flex-wrap gap-2">
                     {(
                       [
-                        ['sale', 'Продажа'],
-                        ['rentOut', 'Аренда'],
-                        ['buyAssist', 'Подбор'],
+                        ['sale', t.caseCard.sale],
+                        ['rentOut', t.caseCard.rent],
+                        ['buyAssist', t.caseCard.pick],
                       ] as const
                     ).map(([v, label]) => (
                       <Chip key={v} active={dealType === v} onClick={() => { setDealType(v); setTouched(true) }}>
@@ -512,17 +517,17 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                   </div>
                 </Field>
 
-                <Field label="Объект">
+                <Field label={t.wizard.objectLabel}>
                   <div className="flex flex-wrap gap-2">
-                    {PROPERTY_TYPES.map((t) => (
-                      <Chip key={t} active={propertyType === t} onClick={() => { setPropertyType(t); setTouched(true) }}>
-                        {t}
+                    {PROPERTY_TYPES.map((p) => (
+                      <Chip key={p} active={propertyType === p} onClick={() => { setPropertyType(p); setTouched(true) }}>
+                        {p}
                       </Chip>
                     ))}
                   </div>
                 </Field>
 
-                <Field label="Район" hint="Точный адрес не публикуется — только район.">
+                <Field label={t.wizard.districtLabel} hint={t.wizard.districtHint}>
                   <div className="flex flex-wrap gap-2">
                     {DISTRICTS.map((d) => (
                       <Chip key={d} active={district === d} onClick={() => { setDistrict(d); setTouched(true) }}>
@@ -536,7 +541,7 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                   <>
                     <div className="grid gap-5 sm:grid-cols-2">
                       <Field
-                        label={dealType === 'rentOut' ? 'Ставка, сом/мес' : 'Цена сделки, сом'}
+                        label={dealType === 'rentOut' ? t.wizard.rateLabel : t.wizard.priceLabel}
                         hint={
                           price
                             ? formatDealPrice(Number(price), { monthly: dealType === 'rentOut' }).usd
@@ -553,10 +558,7 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                           }}
                         />
                       </Field>
-                      <Field
-                        label="Срок на рынке, дней"
-                        hint="Если сделка велась через Ателье — подставится из заказа."
-                      >
+                      <Field label={t.wizard.daysLabel} hint={t.wizard.daysHint}>
                         <Input
                           inputMode="numeric"
                           value={days}
@@ -568,10 +570,7 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                         />
                       </Field>
                     </div>
-                    <Field
-                      label="Показывать цену"
-                      hint="«Вилка» публикует диапазон — точная цена не раскрывается никогда."
-                    >
+                    <Field label={t.wizard.priceVisLabel} hint={t.wizard.priceVisHint}>
                       <Segmented
                         value={priceVis}
                         onChange={(v) => {
@@ -579,22 +578,22 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                           setTouched(true)
                         }}
                         options={[
-                          { value: 'exact', label: 'Точная' },
-                          { value: 'range', label: 'Вилка' },
-                          { value: 'hidden', label: 'Скрыть' },
+                          { value: 'exact', label: t.wizard.visExact },
+                          { value: 'range', label: t.wizard.visRange },
+                          { value: 'hidden', label: t.wizard.visHidden },
                         ]}
                       />
                     </Field>
                   </>
                 ) : (
                   <p className="rounded-lg bg-surface-muted px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">
-                    Для подбора цена и срок не публикуются — кейс расскажет о задаче и результате.
+                    {t.wizard.buyAssistNote}
                   </p>
                 )}
               </>
             ) : (
               <>
-                <Field label="Стиль">
+                <Field label={t.wizard.styleLabel}>
                   <div className="flex flex-wrap gap-2">
                     {STYLES.map((st) => (
                       <Chip key={st} active={style === st} onClick={() => { setStyle(st); setTouched(true) }}>
@@ -604,7 +603,7 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                   </div>
                 </Field>
                 <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="Площадь, м²">
+                  <Field label={t.wizard.areaLabel}>
                     <Input
                       inputMode="numeric"
                       value={areaM2}
@@ -615,7 +614,7 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                       }}
                     />
                   </Field>
-                  <Field label="Район">
+                  <Field label={t.wizard.districtLabel}>
                     <div className="flex flex-wrap gap-2">
                       {DISTRICTS.slice(0, 3).map((d) => (
                         <Chip key={d} active={district === d} onClick={() => { setDistrict(d); setTouched(true) }}>
@@ -633,7 +632,7 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
         {step === 3 ? (
           <div className="animate-fade-up">
             <h2 className="font-display text-xl font-semibold tracking-tight">
-              Так кейс увидят в ленте
+              {t.wizard.previewTitle}
             </h2>
             <div className="pointer-events-none mx-auto mt-4 max-w-[300px]" aria-hidden>
               <CaseCard item={preview} />
@@ -648,9 +647,9 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                   className="mt-0.5 size-5 shrink-0 cursor-pointer accent-(--accent)"
                 />
                 <span className="text-sm leading-relaxed">
-                  Клиент не против публикации: фото и факты сделки согласованы.
+                  {t.wizard.consentText}
                   <span className="block text-[13px] text-muted-foreground">
-                    Обязательно для кейсов-сделок — это защищает и вас, и клиента.
+                    {t.wizard.consentSub}
                   </span>
                 </span>
               </label>
@@ -666,20 +665,20 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
       <div className="sticky bottom-0 z-30 mt-5 max-sm:-mx-4 max-sm:border-t max-sm:border-border max-sm:bg-background/95 max-sm:px-4 max-sm:py-3 max-sm:backdrop-blur-md">
         {step === 3 && kind === 'deal' && !consent ? (
           <p className="mb-2 text-center text-[13px] text-muted-foreground sm:text-right">
-            Отметьте согласие клиента — и можно публиковать.
+            {t.wizard.consentNudge}
           </p>
         ) : null}
         <div className="flex items-center gap-3">
           {step > 1 ? (
             <Button variant="ghost" onClick={() => setStep((s) => s - 1)} className="shrink-0">
               <ArrowLeft aria-hidden />
-              Назад
+              {t.wizard.back}
             </Button>
           ) : null}
           {touched ? (
             <span className="ml-auto flex items-center gap-1 text-[13px] whitespace-nowrap text-muted-foreground max-sm:hidden">
               <Check className="size-3.5 shrink-0 text-success" aria-hidden />
-              Черновик сохранён
+              {t.wizard.draftSaved}
             </span>
           ) : null}
           <div className={cn('min-w-0 sm:ml-3', step === 1 ? 'flex-1 sm:flex-none sm:ml-auto' : 'flex-1 sm:flex-none')}>
@@ -690,7 +689,7 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                 onClick={() => setStep((s) => s + 1)}
                 className="w-full"
               >
-                Далее
+                {t.wizard.next}
                 <ArrowRight aria-hidden />
               </Button>
             ) : (
@@ -716,7 +715,7 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
                 }
                 className="w-full"
               >
-                Опубликовать
+                {t.wizard.publish}
               </Button>
             )}
           </div>
@@ -724,7 +723,7 @@ export function CaseWizard({ initialStep = 1, initialKind = 'deal' }: CaseWizard
         {touched ? (
           <p className="mt-1.5 flex items-center justify-center gap-1 text-xs text-muted-foreground sm:hidden">
             <Check className="size-3 shrink-0 text-success" aria-hidden />
-            Черновик сохранён
+            {t.wizard.draftSaved}
           </p>
         ) : null}
       </div>

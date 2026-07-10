@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Check, Copy, ImageDown, Share2 } from 'lucide-react'
 import type { ShareMethod, ShareSurface } from '@atelier/core'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/i18n/client'
 import { REF_PARAM } from '@/lib/attribution'
 import { trpc } from '@/lib/trpc'
 
@@ -18,7 +19,7 @@ export function ShareButton({
   title,
   surface,
   storySlug,
-  label = 'Поделиться кейсом',
+  label,
 }: {
   /** путь страницы, например /case/slug или /s/slug */
   path: string
@@ -29,6 +30,8 @@ export function ShareButton({
   storySlug?: string
   label?: string
 }) {
+  const { t } = useI18n()
+  const ariaLabel = label ?? t.share.shareCase
   const [open, setOpen] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
   const ref = React.useRef<HTMLDivElement>(null)
@@ -78,13 +81,13 @@ export function ShareButton({
         setOpen(false)
       }, 1200)
     } catch {
-      window.prompt('Скопируйте ссылку:', url())
+      window.prompt(t.share.copyPrompt, url())
     }
   }
 
   return (
     <div className="relative" ref={ref}>
-      <Button variant="secondary" size="icon" aria-label={label} onClick={share}>
+      <Button variant="secondary" size="icon" aria-label={ariaLabel} onClick={share}>
         <Share2 />
       </Button>
       {open ? (
@@ -99,7 +102,7 @@ export function ShareButton({
             ) : (
               <Copy className="size-4 text-muted-foreground" aria-hidden />
             )}
-            {copied ? 'Скопировано' : 'Скопировать ссылку'}
+            {copied ? t.share.copied : t.share.copyLink}
           </button>
           {storySlug ? (
             <a
@@ -112,7 +115,7 @@ export function ShareButton({
               className="flex h-11 w-full items-center gap-2.5 rounded-lg px-3 text-sm transition-colors hover:bg-surface-muted"
             >
               <ImageDown className="size-4 text-muted-foreground" aria-hidden />
-              Визитка для сторис
+              {t.share.storyCard}
             </a>
           ) : null}
         </div>

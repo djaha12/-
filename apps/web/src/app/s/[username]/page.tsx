@@ -18,6 +18,8 @@ import { VerifiedBadge } from '@/components/verified-badge'
 import { img } from '@/mock/data'
 import { getSessionUser } from '@/server/auth'
 import { getSpecialist, markSaved } from '@/server/data'
+import { fmt, pluralize } from '@/i18n/dictionaries'
+import { getDict } from '@/i18n/server'
 import { formatSom, plural } from '@/lib/utils'
 import { SITE_URL } from '@/lib/site'
 
@@ -67,22 +69,34 @@ export default async function ProfilePage({
   const data = await getSpecialist(username)
   if (!data) notFound()
   const viewer = await getSessionUser()
+  const { locale, t } = await getDict()
   const s = data.specialist
   const ownCases = await markSaved(data.cases, viewer?.id)
   const ownReviews = data.reviews
 
   const isRealtor = Boolean(s.dealStats)
   const cover = img(isRealtor ? 'cover2' : 'cover1')
+  const profession =
+    (s.specializationCode &&
+      (t.specializations as Record<string, string>)[s.specializationCode]) ||
+    s.profession
+  // минуты ответа локализуемы через responseMinutes; мок-данные без него — ru-фолбэк
+  const respondsValue =
+    s.responseMinutes != null
+      ? s.responseMinutes < 60
+        ? fmt(t.card.respondsMinutes, { n: s.responseMinutes })
+        : fmt(t.card.respondsHours, { n: Math.round(s.responseMinutes / 60) })
+      : s.responseTime
 
   const avgOf = (pick: (r: (typeof ownReviews)[number]) => number) =>
     ownReviews.length
       ? ownReviews.reduce((sum, r) => sum + pick(r), 0) / ownReviews.length
       : s.rating
   const subscales = [
-    { label: 'Качество', value: avgOf((r) => r.quality) },
-    { label: 'Сроки', value: avgOf((r) => r.timing) },
-    { label: 'Общение', value: avgOf((r) => r.communication) },
-    { label: 'Бюджет', value: avgOf((r) => r.budget) },
+    { label: t.review.quality, value: avgOf((r) => r.quality) },
+    { label: t.review.timing, value: avgOf((r) => r.timing) },
+    { label: t.review.communication, value: avgOf((r) => r.communication) },
+    { label: t.review.budget, value: avgOf((r) => r.budget) },
   ]
 
   return (
@@ -153,7 +167,7 @@ export default async function ProfilePage({
                 </h1>
                 <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] text-muted-foreground">
                   <span>
-                    {s.profession}
+                    {profession}
                     {s.worksAt ? ` · ${s.worksAt}` : ''}
                   </span>
                   <span className="inline-flex items-center gap-1">
@@ -163,7 +177,7 @@ export default async function ProfilePage({
                   {s.acceptsOrders ? (
                     <span className="inline-flex items-center gap-1.5 font-medium text-success">
                       <span className="size-2 rounded-full bg-success" aria-hidden />
-                      Принимает заказы
+                      {t.profile.acceptsOrders}
                     </span>
                   ) : null}
                 </p>
@@ -174,19 +188,19 @@ export default async function ProfilePage({
               {viewer?.specialistSlug === s.slug ? (
                 // владелец: заявку себе не шлют — вместо неё настройка профиля
                 <Button asChild variant="secondary" size="lg">
-                  <Link href="/onboarding">Настроить профиль</Link>
+                  <Link href="/onboarding">{t.profile.editProfile}</Link>
                 </Button>
               ) : (
                 // на мобильном primary живёт в нижнем баре — зона большого пальца
                 <Button asChild size="lg" className="max-sm:hidden">
-                  <a href={`/contact/${s.slug}`}>Отправить заявку</a>
+                  <a href={`/contact/${s.slug}`}>{t.casePage.sendLead}</a>
                 </Button>
               )}
               <ShareButton
                 path={`/s/${s.slug}`}
                 title={s.name}
                 surface="profile"
-                label="Поделиться профилем"
+                label={t.profile.shareProfile}
               />
             </div>
           </div>
@@ -206,7 +220,7 @@ export default async function ProfilePage({
                 ))
               : s.priceFrom > 0 && (
                   <Badge variant="outline" size="md">
-                    от {formatSom(s.priceFrom)}/м²
+                    {fmt(t.profile.fromPerM2, { price: formatSom(s.priceFrom, t.caseCard.som) })}
                   </Badge>
                 )}
           </div>
@@ -214,7 +228,7 @@ export default async function ProfilePage({
           <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-4">
             {[
               {
-                dt: 'Рейтинг',
+                dt: t.profile.rating,
                 dd: (
                   <span className="flex items-center gap-1.5">
                     <span className="font-display text-[22px] font-semibold">
@@ -223,61 +237,61 @@ export default async function ProfilePage({
                     <RatingStars value={s.rating} size={13} />
                   </span>
                 ),
-                sub: `${s.reviewsCount} ${plural(s.reviewsCount, 'отзыв', 'отзыва', 'отзывов')}`,
+                sub: `${s.reviewsCount} ${pluralize(locale, s.reviewsCount, t.profile.reviewsForms)}`,
               },
               // у риелтора доверие продают сделки и срок продажи, а не «проекты»
               ...(s.dealStats
                 ? [
                     {
-                      dt: 'Сделки',
+                      dt: t.profile.dealsStat,
                       dd: (
                         <span className="font-display text-[22px] font-semibold">
                           {s.dealStats.closed}
                         </span>
                       ),
-                      sub: `${s.dealStats.confirmed} ${plural(s.dealStats.confirmed, 'подтверждена', 'подтверждены', 'подтверждено')} клиентами`,
+                      sub: `${s.dealStats.confirmed} ${pluralize(locale, s.dealStats.confirmed, t.card.confirmedByClients)}`,
                     },
                     {
-                      dt: 'Срок продажи',
+                      dt: t.profile.saleTerm,
                       dd: (
                         <span className="font-display text-[22px] font-semibold">
                           {s.dealStats.medianDaysOnMarket}{' '}
-                          {plural(s.dealStats.medianDaysOnMarket, 'день', 'дня', 'дней')}
+                          {pluralize(locale, s.dealStats.medianDaysOnMarket, t.card.days)}
                         </span>
                       ),
-                      sub: 'типичный срок по подтверждённым сделкам',
+                      sub: t.profile.typicalTerm,
                     },
                   ]
                 : [
                     {
-                      dt: 'Проекты',
+                      dt: t.profile.projectsStat,
                       dd: (
                         <span className="font-display text-[22px] font-semibold">
                           {s.projectsCount}
                         </span>
                       ),
-                      sub: 'завершены через Ателье',
+                      sub: t.profile.completedViaAtelier,
                     },
                     {
-                      dt: 'Повторные клиенты',
+                      dt: t.profile.repeatClientsStat,
                       dd: (
                         <span className="flex items-center gap-1.5 font-display text-[22px] font-semibold">
                           <Repeat2 className="size-4.5 text-success" aria-hidden />
                           {s.repeatClientsPct}%
                         </span>
                       ),
-                      sub: 'возвращаются снова',
+                      sub: t.profile.comeBack,
                     },
                   ]),
               {
-                dt: 'Отвечает',
+                dt: t.profile.respondsStat,
                 dd: (
                   <span className="flex items-center gap-1.5 font-display text-[22px] font-semibold">
                     <Clock className="size-4.5 text-muted-foreground" aria-hidden />
-                    {s.responseTime}
+                    {respondsValue}
                   </span>
                 ),
-                sub: `на Ателье с ${s.memberSince} года`,
+                sub: fmt(t.profile.onAtelierSince, { year: s.memberSince }),
               },
             ].map((item) => (
               <div key={item.dt} className="bg-surface px-4 py-3.5">
@@ -294,21 +308,24 @@ export default async function ProfilePage({
         <Tabs defaultValue={tab ?? 'cases'} className="mt-8">
           <TabsList>
             <TabsTrigger value="cases">
-              {isRealtor ? 'Сделки' : 'Кейсы'}{' '}
+              {isRealtor ? t.profile.tabDeals : t.profile.tabCases}{' '}
               <span className="text-faint-foreground">{ownCases.length}</span>
             </TabsTrigger>
             <TabsTrigger value="reviews">
-              Отзывы <span className="text-faint-foreground">{s.reviewsCount}</span>
+              {t.profile.tabReviews} <span className="text-faint-foreground">{s.reviewsCount}</span>
             </TabsTrigger>
-            <TabsTrigger value="about">О специалисте</TabsTrigger>
+            <TabsTrigger value="about">{t.profile.tabAbout}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="cases">
             {isRealtor && s.dealStats ? (
               // кейсы vs «сделок всего» в статистике — снимаем противоречие явно
               <p className="mb-4 text-[13px] text-muted-foreground">
-                {ownCases.length} {plural(ownCases.length, 'сделка', 'сделки', 'сделок')} оформлены
-                как кейсы — из {s.dealStats.closed} завершённых
+                {fmt(t.profile.casesOfDeals, {
+                  n: ownCases.length,
+                  word: pluralize(locale, ownCases.length, t.card.deals),
+                  total: s.dealStats.closed,
+                })}
               </p>
             ) : null}
             {/* в витрине специалиста — ровные ряды (Behance), masonry только в ленте */}
@@ -329,8 +346,8 @@ export default async function ProfilePage({
                   <RatingStars value={s.rating} />
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {s.reviewsCount} {plural(s.reviewsCount, 'отзыв', 'отзыва', 'отзывов')} · все по{' '}
-                  {isRealtor ? 'завершённым сделкам' : 'завершённым заказам'}
+                  {s.reviewsCount} {pluralize(locale, s.reviewsCount, t.profile.reviewsForms)} ·{' '}
+                  {isRealtor ? t.profile.allByDeals : t.profile.allByOrders}
                 </p>
                 <div className="mt-4 space-y-2.5">
                   {subscales.map((row) => (
@@ -356,16 +373,20 @@ export default async function ProfilePage({
                   <ReviewCard
                     key={r.id}
                     review={r}
-                    trustLabel={
-                      isRealtor ? 'Сделка проведена через Ателье' : 'Заказ выполнен через Ателье'
-                    }
+                    trustLabel={isRealtor ? t.casePage.viaAtelierDeal : t.casePage.viaAtelierOrder}
                   />
                 ))}
                 {s.reviewsCount > ownReviews.length ? (
                   <div className="flex justify-center pt-2">
                     <Button variant="secondary">
-                      Показать ещё {s.reviewsCount - ownReviews.length}{' '}
-                      {plural(s.reviewsCount - ownReviews.length, 'отзыв', 'отзыва', 'отзывов')}
+                      {fmt(t.profile.showMore, {
+                        n: s.reviewsCount - ownReviews.length,
+                        word: pluralize(
+                          locale,
+                          s.reviewsCount - ownReviews.length,
+                          t.profile.reviewsForms,
+                        ),
+                      })}
                     </Button>
                   </div>
                 ) : null}
@@ -378,17 +399,15 @@ export default async function ProfilePage({
               {s.bio ? <p className="text-[15px] leading-relaxed">{s.bio}</p> : null}
               <div>
                 <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-                  Подтверждено
+                  {t.profile.verifiedTitle}
                 </h2>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {s.verified ? (
                     <Badge variant="accent" size="md">
-                      Личность подтверждена
+                      {t.profile.identityVerified}
                     </Badge>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Специалист ещё не проходил верификацию.
-                    </p>
+                    <p className="text-sm text-muted-foreground">{t.profile.noVerification}</p>
                   )}
                 </div>
               </div>
@@ -407,10 +426,12 @@ export default async function ProfilePage({
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1 pl-1">
               <p className="truncate text-[13px] font-semibold">{s.name}</p>
-              <p className="truncate text-xs text-muted-foreground">отвечает {s.responseTime}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {fmt(t.profile.respondsIn, { time: respondsValue })}
+              </p>
             </div>
             <Button asChild size="lg" className="flex-[1.4]">
-              <a href={`/contact/${s.slug}`}>Отправить заявку</a>
+              <a href={`/contact/${s.slug}`}>{t.casePage.sendLead}</a>
             </Button>
           </div>
         </div>
