@@ -2,21 +2,20 @@ import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { RatingStars } from '@/components/rating-stars'
 import type { Review } from '@/mock/data'
+import { getDict } from '@/i18n/server'
 
-const SUBSCALES: Array<{ key: keyof Pick<Review, 'quality' | 'timing' | 'communication' | 'budget'>; label: string }> = [
-  { key: 'quality', label: 'Качество' },
-  { key: 'timing', label: 'Сроки' },
-  { key: 'communication', label: 'Общение' },
-  { key: 'budget', label: 'Бюджет' },
-]
+const SUBSCALE_KEYS = ['quality', 'timing', 'communication', 'budget'] as const
 
-export function ReviewCard({
+export async function ReviewCard({
   review,
-  trustLabel = 'Заказ выполнен через Ателье',
+  trustLabel,
 }: {
   review: Review
   trustLabel?: string
 }) {
+  const { t } = await getDict()
+  const subscales = SUBSCALE_KEYS.map((key) => ({ key, label: t.review[key] }))
+  const trust = trustLabel ?? t.casePage.viaAtelierOrder
   const overall = (review.quality + review.timing + review.communication + review.budget) / 4
   return (
     <article className="rounded-xl border border-border bg-surface p-5">
@@ -39,14 +38,14 @@ export function ReviewCard({
       <p className="mt-3.5 text-[15px] leading-relaxed text-foreground/90">{review.text}</p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        {SUBSCALES.map(({ key, label }) => (
+        {subscales.map(({ key, label }) => (
           <Badge key={key} variant="neutral">
             {label} {review[key]},0
           </Badge>
         ))}
         {/* маркер доверия: на 390 — своя строка, не пятая подшкала */}
         <Badge variant="success" className="ml-auto max-sm:mt-1 max-sm:ml-0 max-sm:basis-full">
-          {trustLabel}
+          {trust}
         </Badge>
       </div>
     </article>

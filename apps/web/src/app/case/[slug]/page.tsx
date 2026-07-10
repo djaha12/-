@@ -17,10 +17,11 @@ import { ReviewCard } from '@/components/review-card'
 import { SaveButton } from '@/components/save-button'
 import { ShareButton } from '@/components/share-button'
 import { VerifiedBadge } from '@/components/verified-badge'
+import { fmt, pluralize } from '@/i18n/dictionaries'
 import { getDict } from '@/i18n/server'
 import { getSessionUser } from '@/server/auth'
 import { getCase, markSaved } from '@/server/data'
-import { formatBudgetRange, formatDealPrice, plural } from '@/lib/utils'
+import { formatBudgetRange, formatDealPrice } from '@/lib/utils'
 import { SITE_URL } from '@/lib/site'
 
 export const dynamic = 'force-dynamic'
@@ -65,7 +66,7 @@ export async function generateMetadata({
 }
 
 export default async function CasePage({ params }: { params: Promise<{ slug: string }> }) {
-  const { t } = await getDict()
+  const { locale, t } = await getDict()
   const { slug } = await params
   const viewer = await getSessionUser()
   // автор и модератор видят и неопубликованный кейс (баннер статуса ниже)
@@ -94,7 +95,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
         ...(price
           ? [
               {
-                dt: deal.type === 'rentOut' ? 'Ставка' : 'Цена сделки',
+                dt: deal.type === 'rentOut' ? t.casePage.rate : t.casePage.priceDeal,
                 dd: price.som,
                 sub: price.usd,
                 big: true,
@@ -103,61 +104,66 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
           : deal.priceFrom && deal.priceTo
             ? [
                 {
-                  dt: 'Цена сделки',
+                  dt: t.casePage.priceDeal,
                   dd: formatBudgetRange(deal.priceFrom, deal.priceTo, { som: t.caseCard.som }).som,
-                  sub: 'публикуется вилкой',
+                  sub: t.casePage.priceRangeSub,
                   big: true,
                 },
               ]
-            : [{ dt: 'Бюджет', dd: 'Под задачу клиента', sub: 'вилка не публикуется' }]),
+            : [{ dt: t.casePage.budget, dd: t.caseCard.forClientTask, sub: t.casePage.budgetNotPublished }]),
         ...(deal.daysOnMarket
           ? [
               {
-                dt: 'Срок на рынке',
-                dd: `${deal.daysOnMarket} ${plural(deal.daysOnMarket, 'день', 'дня', 'дней')}`,
+                dt: t.casePage.daysOnMarket,
+                dd: `${deal.daysOnMarket} ${pluralize(locale, deal.daysOnMarket, t.card.days)}`,
                 // честная атрибуция: без заказа на платформе срок — со слов риелтора
                 sub: deal.confirmed
                   ? deal.type === 'rentOut'
-                    ? 'от публикации до договора'
-                    : 'от публикации до задатка'
-                  : 'по данным риелтора',
+                    ? t.casePage.fromListingToContract
+                    : t.casePage.fromListingToDeposit
+                  : t.casePage.byRealtor,
                 big: true,
               },
             ]
           : []),
         {
-          dt: 'Тип',
+          dt: t.casePage.type,
           dd: `${dealTypeLabel(t, deal.type)} · ${deal.propertyType}`,
           sub: item!.areaM2 ? `${item!.areaM2} м²` : '—',
         },
-        { dt: 'Локация', dd: item!.location, sub: 'точный адрес — после заявки' },
+        { dt: t.casePage.location, dd: item!.location, sub: t.casePage.addressAfterLead },
       ]
     : [
-        ...(item!.areaM2 ? [{ dt: 'Площадь', dd: `${item!.areaM2} м²`, sub: 'по обмерам' }] : []),
-        ...(budget ? [{ dt: 'Бюджет', dd: budget.som, sub: budget.usd }] : []),
-        { dt: 'Роль', dd: 'Полный дизайн-проект', sub: 'с авторским надзором' },
-        { dt: 'Локация', dd: item!.location, sub: 'город и район' },
+        ...(item!.areaM2 ? [{ dt: t.casePage.area, dd: `${item!.areaM2} м²`, sub: t.casePage.byMeasurements }] : []),
+        ...(budget ? [{ dt: t.casePage.budget, dd: budget.som, sub: budget.usd }] : []),
+        { dt: t.casePage.role, dd: t.casePage.fullDesignProject, sub: t.casePage.withSupervision },
+        { dt: t.casePage.location, dd: item!.location, sub: t.casePage.cityAndDistrict },
       ]
 
   const beforeAfterCopy = deal
     ? {
-        title: 'Подготовка к продаже',
-        text: 'Слева — объект в старом объявлении, справа — после хоумстейджинга и съёмки. Подготовка сократила срок продажи и подняла цену.',
+        title: t.casePage.beforeAfterSaleTitle,
+        text: t.casePage.beforeAfterSaleText,
       }
     : {
-        title: 'До и после',
-        text: 'Потяните ползунок, чтобы сравнить состояние до ремонта и результат.',
+        title: t.casePage.beforeAfterTitle,
+        text: t.casePage.beforeAfterText,
       }
 
+  const respondTime =
+    author.responseMinutes != null
+      ? author.responseMinutes < 60
+        ? fmt(t.casePage.timeMinutes, { n: author.responseMinutes })
+        : fmt(t.casePage.timeHours, { n: Math.round(author.responseMinutes / 60) })
+      : author.responseTime.replace('~', '')
   const cta = deal
     ? {
-        title:
-          deal.type === 'buyAssist' ? 'Ищете квартиру под задачу?' : 'Продаёте похожий объект?',
-        text: `Опишите объект — ${author.name.split(' ')[0]} ответит в течение ${author.responseTime.replace('~', '')}. Оценка и план продажи — бесплатно.`,
+        title: deal.type === 'buyAssist' ? t.casePage.ctaPickTitle : t.casePage.ctaSaleTitle,
+        text: fmt(t.casePage.ctaDealText, { name: author.name.split(' ')[0]!, time: respondTime }),
       }
     : {
-        title: 'Хотите похожий проект?',
-        text: `Опишите задачу — ${author.name.split(' ')[0]} ответит в течение ${author.responseTime.replace('~', '')}. Это бесплатно и ни к чему не обязывает.`,
+        title: t.casePage.ctaProjectTitle,
+        text: fmt(t.casePage.ctaProjectText, { name: author.name.split(' ')[0]!, time: respondTime }),
       }
 
   return (
@@ -242,7 +248,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
                 {deal.confirmed ? (
                   <Badge variant="success" size="md">
                     <BadgeCheck aria-hidden />
-                    Сделка подтверждена клиентом
+                    {t.casePage.confirmedPill}
                   </Badge>
                 ) : null}
               </>
@@ -293,7 +299,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
           </div>
         </header>
 
-        <section aria-label="Галерея" className="mt-7">
+        <section aria-label={t.casePage.gallery} className="mt-7">
           <div className="relative overflow-hidden rounded-xl bg-surface-muted sm:rounded-2xl">
             <Image
               src={hero.src}
@@ -308,14 +314,14 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
             />
             {deal && dealOutcomeLabel(t, deal) ? (
               <span
-                title={deal.confirmed ? 'Подтверждена клиентом' : undefined}
+                title={deal.confirmed ? t.casePage.confirmedBadge : undefined}
                 className={`absolute bottom-4 left-4 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold text-white ring-1 ring-white/15 backdrop-blur-sm ${
                   deal.confirmed ? 'bg-[oklch(0.46_0.085_155)]/90' : 'bg-black/70'
                 }`}
               >
                 {deal.confirmed ? <BadgeCheck className="size-4" aria-hidden /> : null}
                 {dealOutcomeLabel(t, deal)}
-                {deal.confirmed ? <span className="sr-only">, подтверждена клиентом</span> : null}
+                {deal.confirmed ? <span className="sr-only">{t.caseCard.confirmedSr}</span> : null}
               </span>
             ) : null}
           </div>
@@ -396,7 +402,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
             {story.length > 0 ? (
               <>
                 <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-                  {deal ? 'Как прошла сделка' : 'О проекте'}
+                  {deal ? t.casePage.howDealWent : t.casePage.aboutProject}
                 </h2>
                 <div className="mt-4 space-y-4 text-[15px] leading-relaxed text-foreground/90 sm:text-base">
                   {story.map((p) => (
@@ -409,13 +415,13 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
             {review ? (
               <>
                 <h2 className={`${story.length > 0 ? 'mt-10 ' : ''}font-display text-2xl font-semibold tracking-tight sm:text-3xl`}>
-                  {deal ? 'Отзыв клиента по сделке' : 'Отзыв клиента'}
+                  {deal ? t.casePage.reviewDeal : t.casePage.review}
                 </h2>
                 <div className="mt-4">
                   <ReviewCard
                     review={review}
                     trustLabel={
-                      deal ? 'Сделка проведена через Ателье' : 'Заказ выполнен через Ателье'
+                      deal ? t.casePage.viaAtelierDeal : t.casePage.viaAtelierOrder
                     }
                   />
                 </div>
@@ -427,10 +433,10 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
             <p className="font-display text-xl font-semibold tracking-tight">{cta.title}</p>
             <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{cta.text}</p>
             <Button asChild size="lg" className="mt-4 w-full">
-              <Link href={`/contact/${author.slug}?case=${item!.slug}`}>Отправить заявку</Link>
+              <Link href={`/contact/${author.slug}?case=${item!.slug}`}>{t.casePage.sendLead}</Link>
             </Button>
             <p className="mt-3 text-center text-xs text-muted-foreground">
-              Телефон откроется после отклика специалиста
+              {t.casePage.phoneAfterReply}
             </p>
           </aside>
         </section>
@@ -454,7 +460,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
         {related.length > 0 ? (
           <section className="mt-12">
             <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-              {deal ? 'Другие сделки' : 'Похожие проекты'}
+              {deal ? t.casePage.otherDeals : t.casePage.similarProjects}
             </h2>
             {/* ровная сетка: masonry только в ленте */}
             <div className="mt-5 grid grid-cols-2 gap-5 lg:grid-cols-4">
@@ -475,10 +481,10 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1 pl-1">
             <p className="truncate text-[13px] font-semibold">{author.name}</p>
-            <p className="truncate text-xs text-muted-foreground">отвечает {author.responseTime}</p>
+            <p className="truncate text-xs text-muted-foreground">{t.card.responds} ~{respondTime}</p>
           </div>
           <Button asChild size="lg" className="flex-[1.4]">
-            <Link href={`/contact/${author.slug}?case=${item!.slug}`}>Отправить заявку</Link>
+            <Link href={`/contact/${author.slug}?case=${item!.slug}`}>{t.casePage.sendLead}</Link>
           </Button>
         </div>
       </div>

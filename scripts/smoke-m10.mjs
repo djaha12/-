@@ -43,6 +43,19 @@ const main = async () => {
   check('15. en: бейдж сделки в ленте (Sold in)', en.includes('Sold in'), 'нет')
   check('16. ky: специализация на карточке («Интерьер дизайнери»)', kyCat.includes('Интерьер дизайнери'), 'нет')
 
+  // M10.3: страница кейса
+  const kyHome = ky
+  const caseSlug = (kyHome.match(/\/case\/([a-z0-9-]+)/) || [])[1]
+  if (caseSlug) {
+    const kyCase = await page(`/case/${caseSlug}`, 'ky')
+    check('17. ky: блок фактов кейса («Бүтүмдүн баасы» или «Аянты»)', kyCase.includes('Бүтүмдүн баасы') || kyCase.includes('Аянты'), 'нет')
+    check('18. ky: CTA кейса («Табыштама жөнөтүү»)', kyCase.includes('Табыштама жөнөтүү'), 'нет')
+    const enCase = await page(`/case/${caseSlug}`, 'en')
+    check('19. en: страница кейса (Send a request)', enCase.includes('Send a request'), 'нет')
+  } else {
+    check('17. кейс для проверки найден', false, 'нет slug в ленте')
+  }
+
   console.log(`\n${pass}/${pass + fail} проверок пройдено`)
   process.exit(fail ? 1 : 0)
 }

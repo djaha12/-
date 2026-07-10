@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Flag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/i18n/client'
 import { trpc } from '@/lib/trpc'
 import { cn } from '@/lib/utils'
 
@@ -19,6 +20,7 @@ type ReasonKey = (typeof REASONS)[number]['key']
 
 /** Жалоба на кейс — доступна и гостям (анонимный cookie на сервере) */
 export function ReportButton({ caseSlug }: { caseSlug: string }) {
+  const { t } = useI18n()
   const [open, setOpen] = React.useState(false)
   const [reason, setReason] = React.useState<ReasonKey | null>(null)
   const [comment, setComment] = React.useState('')
@@ -42,7 +44,7 @@ export function ReportButton({ caseSlug }: { caseSlug: string }) {
           onClick={() => setOpen(true)}
         >
           <Flag aria-hidden />
-          Пожаловаться на кейс
+          {t.report.cta}
         </Button>
       </div>
     )

@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useI18n } from '@/i18n/client'
 import Image from 'next/image'
 import { ChevronsLeftRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -22,6 +23,7 @@ export function BeforeAfterSlider({
   after: Img
   className?: string
 }) {
+  const { t } = useI18n()
   const [pos, setPos] = React.useState(50)
   const ref = React.useRef<HTMLDivElement>(null)
   const dragging = React.useRef(false)
@@ -66,7 +68,7 @@ export function BeforeAfterSlider({
     >
       <Image
         src={after.src}
-        alt="После"
+        alt={t.slider.after}
         width={after.width}
         height={after.height}
         placeholder="blur"
@@ -113,10 +115,10 @@ export function BeforeAfterSlider({
       </div>
 
       <span className="absolute top-4 left-4 rounded-full bg-black/55 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-        До
+        {t.slider.before}
       </span>
       <span className="absolute top-4 right-4 rounded-full bg-black/55 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-        После
+        {t.slider.after}
       </span>
     </div>
   )
