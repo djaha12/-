@@ -79,11 +79,14 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
 
   const hero = gallery[1] ?? gallery[0] ?? item!.image
   const grid = gallery.slice(2, 6)
+  const money = { som: t.caseCard.som, somMonthly: t.caseCard.somMonthly, perMonthShort: t.caseCard.perMonthShort }
   const price = deal?.price
-    ? formatDealPrice(deal.price, { monthly: deal.type === 'rentOut' })
+    ? formatDealPrice(deal.price, { monthly: deal.type === 'rentOut', labels: money })
     : null
   const budget =
-    !deal && item!.budgetFrom > 0 ? formatBudgetRange(item!.budgetFrom, item!.budgetTo) : null
+    !deal && item!.budgetFrom > 0
+      ? formatBudgetRange(item!.budgetFrom, item!.budgetTo, { som: t.caseCard.som })
+      : null
 
   // big: итог сделки (цена + скорость) крупнее служебного контекста
   const paramItems = deal
@@ -101,7 +104,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
             ? [
                 {
                   dt: 'Цена сделки',
-                  dd: formatBudgetRange(deal.priceFrom, deal.priceTo).som,
+                  dd: formatBudgetRange(deal.priceFrom, deal.priceTo, { som: t.caseCard.som }).som,
                   sub: 'публикуется вилкой',
                   big: true,
                 },

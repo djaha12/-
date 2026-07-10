@@ -370,7 +370,7 @@ const en: Dict = {
   caseCard: {
     sale: 'Sale',
     rent: 'Rent',
-    pick: 'Search',
+    pick: 'Buyer search',
     soldIn: 'Sold in {n} d.',
     rentedIn: 'Rented in {n} d.',
     pickDone: 'Search completed',
