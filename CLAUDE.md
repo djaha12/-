@@ -47,7 +47,7 @@ fail-closed, /dev/ui скрыт), SEED_DEMO=0 = только справочни�
 OTP: Telegram Gateway реализован (server/otp-gateway.ts, вкл. TELEGRAM_GATEWAY_TOKEN; сбой доставки
 расходует rate-limit — не self-DoS); без токена — демо через OTP_DEV_MODE на preview. SMS-фолбэк — Фаза 1.5.
 Маркетинг: docs/06-go-to-market.md (GTM+SMM пилота, validation-first после двойной критики).
-Дальше: i18n доменных строк (карточки каталога первыми) / web-push+дайджест / оплата (Фаза 1.5).
+Дальше: i18n страницы кейса/профиля/мастеров / web-push+дайджест / оплата (Фаза 1.5).
 
 ## Документы
 - docs/02 план (M1–M7 + realtor-дельты) · docs/03 решения (§12 дефолты, §13 realtor-first,
