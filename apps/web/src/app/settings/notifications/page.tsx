@@ -14,7 +14,12 @@ import { makeLinkToken, TELEGRAM_BOT_USERNAME } from '@/server/telegram'
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = { title: 'Уведомления — настройки' }
+// приватная страница: SEO-решение «metadata ru» (docs/03 §21) на неё не
+// распространяется — заголовок вкладки следует за языком интерфейса
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getDict()
+  return { title: t.settingsNotif.title }
+}
 
 export default async function NotificationSettingsPage() {
   const user = await getSessionUser()
